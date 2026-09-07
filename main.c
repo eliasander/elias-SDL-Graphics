@@ -5,6 +5,21 @@
 
 #include "GLFW/glfw3.h"
 
+#define BASE_WIDTH 256
+#define BASE_HEIGHT 144
+
+typedef struct
+{
+    float x,y;
+} Vector;
+
+unsigned int VBO;
+unsigned int VAO;
+unsigned int EBO;
+unsigned int shaderProgram;
+int screenWidth, screenHeight = 0;
+float scale;
+
 const char *vertexShaderSource = "#version 330 core\n"
     "layout (location = 0) in vec3 aPos;\n"
     "void main()\n"
@@ -17,21 +32,172 @@ const char *fragmentShaderSource = "#version 330 core\n"
 
     "void main()\n"
     "{\n"
-    "    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+    "    FragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n"
     "}\0";
 
+void DrawTriangle(Vector pos, Vector size)
+{
+    pos.x *= scale;
+    pos.y *= scale;
+
+    size.x *= scale;
+    size.y *= scale;
+
+    float x = (pos.x / screenWidth) * 2.0f - 1.0f;
+    float y = 1.0f - (pos.y / screenHeight) * 2.0f;
+
+    float width  = (size.x / screenWidth) * 2.0f;
+    float height = (size.y / screenHeight) * 2.0f;
+
+    float vertices2[] = {
+        x,         y,          0.0f,  // top-left
+        x + width, y,          0.0f,  // top-right
+        x + width, y - height, 0.0f  // bottom-right
+    };
+    // 0: Bind Vertex Buffer Object and copy data into buffer data
+    // 1. bind Vertex Array Object
+    glBindVertexArray(VAO);
+    // 2. copy our vertices array in a buffer for OpenGL to use
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        sizeof(vertices2),
+        vertices2,
+        GL_STATIC_DRAW
+    );
+    // 3. then set our vertex attributes pointers
+    glVertexAttribPointer(
+    0,
+    3,
+    GL_FLOAT,
+    GL_FALSE,
+    3 * sizeof(float),
+    (void*)0
+    );
+    glEnableVertexAttribArray(0);
 
 
+
+    // 1: Tell OpenGL how to interpret the vertices which we have given.
+
+    // 2: Use Shader Program
+    glUseProgram(shaderProgram);
+
+    // 3: Render our objects
+
+    glUseProgram(shaderProgram);
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+}
+
+void DrawRectangle(Vector pos, Vector size)
+{
+    pos.x *= scale;
+    pos.y *= scale;
+
+    size.x *= scale;
+    size.y *= scale;
+
+    float x = (pos.x / screenWidth) * 2.0f - 1.0f;
+    float y = 1.0f - (pos.y / screenHeight) * 2.0f;
+
+    float width  = (size.x / screenWidth) * 2.0f;
+    float height = (size.y / screenHeight) * 2.0f;
+
+    float vertices[] = {
+        x,         y,          0.0f, // 0: top-left
+        x + width, y,          0.0f, // 1: top-right
+        x + width, y - height, 0.0f, // 2: bottom-right
+        x,         y - height, 0.0f  // 3: bottom-left
+    };
+
+    unsigned int indices[] = {
+        0, 1, 3,
+        1, 2, 3
+    };
+
+    // Bind VAO FIRST
+    glBindVertexArray(VAO);
+
+    // Upload vertices
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        sizeof(vertices),
+        vertices,
+        GL_DYNAMIC_DRAW
+    );
+
+    // Upload indices
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        sizeof(indices),
+        indices,
+        GL_DYNAMIC_DRAW
+    );
+
+    // Position attribute: 3 floats
+    glVertexAttribPointer(
+        0,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        3 * sizeof(float),
+        (void*)0
+    );
+
+    glEnableVertexAttribArray(0);
+
+    // Shader
+    glUseProgram(shaderProgram);
+
+    // Draw rectangle (2 triangles = 6 indices)
+    glDrawElements(
+        GL_TRIANGLES,
+        6,
+        GL_UNSIGNED_INT,
+        0
+    );
+}
+
+void check_scale(float height, float width)
+{
+    float scaleX = width / BASE_WIDTH;
+    float scaleY = height / BASE_HEIGHT;
+    if (scaleX < scaleY)
+        scale = scaleX;
+    else
+        scale = scaleY;
+}
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
+    screenWidth = width;
+    screenHeight = height;
+    check_scale(height, width);
 }
 
-void processInput(GLFWwindow *window)
+void processInput(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
+    static bool vsync = true;
+    static bool wired = false;
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+    {
+        vsync = !vsync;
+        glfwSwapInterval(vsync);
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+    {
+        wired = !wired;
+        if (wired)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        else
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
 }
 
 
@@ -44,7 +210,7 @@ int main(void)
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(256, 144, "LearnOpenGL", NULL, NULL);
     if (window == NULL)
     {
         printf("Failed to create GLFW window\n");
@@ -62,9 +228,12 @@ int main(void)
     }
 
     // Set window resize event to framebuffer_size_callback
+    glfwGetWindowSize(window, &screenWidth, &screenHeight);
+    glViewport(0, 0, screenWidth, screenHeight);
+    check_scale(screenHeight, screenWidth);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-
+    glfwSetKeyCallback(window, processInput);
 
     // Compile shaders
     // Compile vertex shader
@@ -80,7 +249,6 @@ int main(void)
     glCompileShader(fragmentShader);
 
     // Create Shader Program
-    unsigned int shaderProgram;
     shaderProgram = glCreateProgram();
 
     glAttachShader(shaderProgram, vertexShader);
@@ -93,59 +261,43 @@ int main(void)
 
 
     // Create Vertex Buffer Object
-    unsigned int VBO;
     glGenBuffers(1, &VBO);
 
     // Create Vertex Array Object
-    unsigned int VAO;
     glGenVertexArrays(1, &VAO);
 
+    glGenBuffers(1, &EBO);
+
+    double previousTime = glfwGetTime();
+    int frameCount = 0;
 
 
     while(!glfwWindowShouldClose(window))
     {
-        // Input
-        processInput(window);
 
         // Render here
-
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        float vertices[] = {
-            -0.5f, -0.5f, 0.0f,
-             0.5f, -0.5f, 0.0f,
-            -0.5f,  0.5f, 0.0f,
-           -0.5f, 0.5f, 0.0f,
-            0.5f, -0.5f, 0.0f,
-            0.5f,  0.5f, 0.0f
-        };
-        float vertices2[] = {
-        };
+        DrawRectangle((Vector){0,0}, (Vector){BASE_WIDTH,BASE_HEIGHT});
 
+        DrawTriangle((Vector){10,10}, (Vector){20,20});
+        DrawRectangle((Vector){40,10}, (Vector){20,20});
 
+        // FPS calculations
+        frameCount++;
 
-        // 0: Bind Vertex Buffer Object and copy data into buffer data
-            // 1. bind Vertex Array Object
-            glBindVertexArray(VAO);
-            // 2. copy our vertices array in a buffer for OpenGL to use
-            glBindBuffer(GL_ARRAY_BUFFER, VBO);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-            // 3. then set our vertex attributes pointers
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
+        double currentTime = glfwGetTime();
 
+        if (currentTime - previousTime >= 1.0)
+        {
+            char title[64];
+            sprintf(title, "My OpenGL Game - FPS: %d", frameCount);
 
-        // 1: Tell OpenGL how to interpret the vertices which we have given.
+            glfwSetWindowTitle(window, title);
 
-        // 2: Use Shader Program
-            glUseProgram(shaderProgram);
-
-        // 3: Render our objects
-
-        glUseProgram(shaderProgram);
-        glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+            frameCount = 0;
+            previousTime = currentTime;
+        }
 
 
 
