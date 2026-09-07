@@ -79,6 +79,28 @@ int main(void)
     glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
     glCompileShader(fragmentShader);
 
+    // Create Shader Program
+    unsigned int shaderProgram;
+    shaderProgram = glCreateProgram();
+
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+
+    // Delete shaders - these aren't needed anymore
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+
+    // Create Vertex Buffer Object
+    unsigned int VBO;
+    glGenBuffers(1, &VBO);
+
+    // Create Vertex Array Object
+    unsigned int VAO;
+    glGenVertexArrays(1, &VAO);
+
+
 
     while(!glfwWindowShouldClose(window))
     {
@@ -93,19 +115,38 @@ int main(void)
         float vertices[] = {
             -0.5f, -0.5f, 0.0f,
              0.5f, -0.5f, 0.0f,
-             0.0f,  0.5f, 0.0f
+            -0.5f,  0.5f, 0.0f,
+           -0.5f, 0.5f, 0.0f,
+            0.5f, -0.5f, 0.0f,
+            0.5f,  0.5f, 0.0f
+        };
+        float vertices2[] = {
         };
 
 
 
-        // Create Vertex Buffer Object
-        unsigned int VBO;
-        glGenBuffers(1, &VBO);
-        // Bind Vertex Buffer Object
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        // Copy currently bound buffer into buffer data
+        // 0: Bind Vertex Buffer Object and copy data into buffer data
+            // 1. bind Vertex Array Object
+            glBindVertexArray(VAO);
+            // 2. copy our vertices array in a buffer for OpenGL to use
+            glBindBuffer(GL_ARRAY_BUFFER, VBO);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+            // 3. then set our vertex attributes pointers
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
 
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+        // 1: Tell OpenGL how to interpret the vertices which we have given.
+
+        // 2: Use Shader Program
+            glUseProgram(shaderProgram);
+
+        // 3: Render our objects
+
+        glUseProgram(shaderProgram);
+        glBindVertexArray(VAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
 
 
         // Swap the buffers, then check and call events
@@ -113,6 +154,7 @@ int main(void)
         glfwPollEvents();
     }
 
+    // Terminate glfw
     glfwTerminate();
     return 0;
 }
