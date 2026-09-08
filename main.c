@@ -1,4 +1,5 @@
 
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <glad/glad.h>
@@ -11,7 +12,18 @@
 typedef struct
 {
     float x,y;
-} Vector;
+} vec2;
+
+typedef struct
+{
+    float x,y,z;
+} vec3;
+
+#define RED (vec3){1.0, 0.0, 0.0}
+#define GREEN (vec3){0.22, 0.67, 0.35}
+#define DARKGREEN (vec3){0.14, 0.53, 0.24}
+#define BLUE (vec3){0.0, 0.0, 1.0}
+#define WHITE (vec3){1.0, 1.0, 1.0}
 
 unsigned int VBO;
 unsigned int VAO;
@@ -21,21 +33,28 @@ int screenWidth, screenHeight = 0;
 float scale;
 
 const char *vertexShaderSource = "#version 330 core\n"
-    "layout (location = 0) in vec3 aPos;\n"
+    "layout (location = 0) in vec2 aPos;\n"
+    "layout (location = 1) in vec3 aColor;\n"
+
+    "out vec3 fColor;\n"
+
     "void main()\n"
     "{\n"
-    "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+    "   gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);\n"
+    "   fColor = aColor;\n"
     "}\0";
 
 const char *fragmentShaderSource = "#version 330 core\n"
     "out vec4 FragColor;\n"
 
+    "in vec3 fColor;\n"
+
     "void main()\n"
     "{\n"
-    "    FragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n"
+    "    FragColor = vec4(fColor, 1.0);\n"
     "}\0";
 
-void DrawTriangle(Vector pos, Vector size)
+void DrawTriangle(vec2 pos, vec2 size)
 {
     pos.x *= scale;
     pos.y *= scale;
@@ -90,7 +109,7 @@ void DrawTriangle(Vector pos, Vector size)
     glDrawArrays(GL_TRIANGLES, 0, 3);
 }
 
-void DrawRectangle(Vector pos, Vector size)
+void DrawRectangle(vec2 pos, vec2 size, vec3 color)
 {
     pos.x *= scale;
     pos.y *= scale;
@@ -105,10 +124,10 @@ void DrawRectangle(Vector pos, Vector size)
     float height = (size.y / screenHeight) * 2.0f;
 
     float vertices[] = {
-        x,         y,          0.0f, // 0: top-left
-        x + width, y,          0.0f, // 1: top-right
-        x + width, y - height, 0.0f, // 2: bottom-right
-        x,         y - height, 0.0f  // 3: bottom-left
+        x,         y,          color.x, color.y, color.z,
+        x + width, y,          color.x, color.y, color.z,
+        x + width, y - height, color.x, color.y, color.z,
+        x,         y - height, color.x, color.y, color.z
     };
 
     unsigned int indices[] = {
@@ -140,14 +159,23 @@ void DrawRectangle(Vector pos, Vector size)
     // Position attribute: 3 floats
     glVertexAttribPointer(
         0,
-        3,
+        2,
         GL_FLOAT,
         GL_FALSE,
-        3 * sizeof(float),
+        5 * sizeof(float),
         (void*)0
     );
-
     glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(
+        1,                  // location
+        3,                  // vec3
+        GL_FLOAT,
+        GL_FALSE,
+        5 * sizeof(float),  // stride
+        (void*)(2 * sizeof(float))
+    );
+    glEnableVertexAttribArray(1);
 
     // Shader
     glUseProgram(shaderProgram);
@@ -242,11 +270,28 @@ int main(void)
     glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
     glCompileShader(vertexShader);
 
+    int success;
+    char infoLog[512];
+
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+        printf("VERTEX SHADER ERROR:\n%s\n", infoLog);
+    }
+
     // Compile fragment shader
     unsigned int fragmentShader;
     fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
     glCompileShader(fragmentShader);
+
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
+        printf("FRAGMENT SHADER ERROR:\n%s\n", infoLog);
+    }
 
     // Create Shader Program
     shaderProgram = glCreateProgram();
@@ -254,6 +299,13 @@ int main(void)
     glAttachShader(shaderProgram, vertexShader);
     glAttachShader(shaderProgram, fragmentShader);
     glLinkProgram(shaderProgram);
+
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+
+    if (!success) {
+        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+        printf("SHADER PROGRAM LINK ERROR:\n%s\n", infoLog);
+    }
 
     // Delete shaders - these aren't needed anymore
     glDeleteShader(vertexShader);
@@ -277,11 +329,19 @@ int main(void)
 
         // Render here
         glClear(GL_COLOR_BUFFER_BIT);
-
-        DrawRectangle((Vector){0,0}, (Vector){BASE_WIDTH,BASE_HEIGHT});
-
-        DrawTriangle((Vector){10,10}, (Vector){20,20});
-        DrawRectangle((Vector){40,10}, (Vector){20,20});
+        int tileSize = 6;
+        for (int y = 0; y < 15; y++)
+        {
+            for (int x = 0; x < 17; x++)
+            {
+                vec3 color;
+                if ((x+y) % 2 == 0)
+                    color = GREEN;
+                else
+                    color = DARKGREEN;
+                DrawRectangle((vec2){10+x*tileSize,10+y*tileSize}, (vec2){tileSize,tileSize}, color);
+            }
+        }
 
         // FPS calculations
         frameCount++;
@@ -293,7 +353,7 @@ int main(void)
             char title[64];
             sprintf(title, "My OpenGL Game - FPS: %d", frameCount);
 
-            glfwSetWindowTitle(window, title);
+            printf(title);
 
             frameCount = 0;
             previousTime = currentTime;
