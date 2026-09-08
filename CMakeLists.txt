@@ -5,9 +5,6 @@ set(CMAKE_C_STANDARD 99)
 
 include(FetchContent)
 
-# Optional: don't build extras
-set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
 
 # --- raylib ---
 FetchContent_Declare(

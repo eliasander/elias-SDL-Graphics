@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <glad/glad.h>
 
 #include "GLFW/glfw3.h"
@@ -197,6 +198,33 @@ void check_scale(float height, float width)
         scale = scaleX;
     else
         scale = scaleY;
+}
+
+char *read_file(const char *path)
+{
+    FILE *file = fopen(path, "rb");
+
+    if (!file) {
+        perror(path);
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    rewind(file);
+
+    char *buffer = malloc(size + 1);
+    if (!buffer) {
+        fclose(file);
+        return NULL;
+    }
+
+    fread(buffer, 1, size, file);
+    buffer[size] = '\0';
+
+    fclose(file);
+
+    return buffer;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
