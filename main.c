@@ -7,10 +7,9 @@
 
 #include "GLFW/glfw3.h"
 
-#include <SDL3/SDL.h>
-
 #define BASE_WIDTH 256
 #define BASE_HEIGHT 144
+#define ARRAYCOUNT(arr) sizeof(arr)/sizeof(*(arr))
 
 typedef struct
 {
@@ -22,12 +21,26 @@ typedef struct
     float x,y,z;
 } vec3;
 
+typedef struct {
+    vec2 pos;
+    vec3 color;
+} Vertex;
+
+typedef struct {
+    vec2 min;
+    vec2 max;
+    vec3 color;
+} RectInstance;
+
 typedef struct
 {
-    unsigned int VBO;
-    unsigned int VAO;
-    unsigned int EBO;
-    unsigned int shaderProgram;
+    GLuint VBO;
+    GLuint VAO;
+    GLuint EBO;
+    GLuint shaderProgram;
+    Vertex vertices[1024*4];
+    unsigned int indices[1024*6];
+    unsigned int rectCount;
 } OpenGL_Context;
 
 #define RED (vec3){1.0, 0.0, 0.0}
@@ -40,7 +53,7 @@ typedef struct
 static OpenGL_Context context;
 
 int screenWidth, screenHeight = 0;
-float scale;
+float scale = 1;
 
 void DrawTriangle(vec2 pos, vec2 size, vec3 color)
 {
@@ -121,70 +134,27 @@ void DrawRectangle(vec2 pos, vec2 size, vec3 color)
     float height =
         size.y / (float)screenHeight * 2.0f;
 
-    float vertices[] = {
-        x,         y,          color.x, color.y, color.z,
-        x + width, y,          color.x, color.y, color.z,
-        x + width, y - height, color.x, color.y, color.z,
-        x,         y - height, color.x, color.y, color.z
+    Vertex verticies[4] = {
+        {x,         y,          color.x, color.y, color.z},
+        {x + width, y,          color.x, color.y, color.z},
+        {x,         y - height, color.x, color.y, color.z},
+        {x + width, y - height, color.x, color.y, color.z}
     };
+
+    for (int i = 0; i < 4; i++) {
+        context.vertices[context.rectCount*4+i] = verticies[i];
+    }
 
     unsigned int indices[] = {
-        0, 1, 3,
-        1, 2, 3
+        context.rectCount*4+0, context.rectCount*4+1, context.rectCount*4+2,
+        context.rectCount*4+1, context.rectCount*4+2, context.rectCount*4+3,
     };
 
-    // Bind VAO FIRST
-    glBindVertexArray(context.VAO);
+    for (int i = 0; i < 6; i++) {
+        context.indices[context.rectCount*6+i] = indices[i];
+    }
 
-    // Upload vertices
-    glBindBuffer(GL_ARRAY_BUFFER, context.VBO);
-    glBufferData(
-        GL_ARRAY_BUFFER,
-        sizeof(vertices),
-        vertices,
-        GL_DYNAMIC_DRAW
-    );
-
-    // Upload indices
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context.EBO);
-    glBufferData(
-        GL_ELEMENT_ARRAY_BUFFER,
-        sizeof(indices),
-        indices,
-        GL_DYNAMIC_DRAW
-    );
-
-    // Position attribute: 3 floats
-    glVertexAttribPointer(
-        0,
-        2,
-        GL_FLOAT,
-        GL_FALSE,
-        5 * sizeof(float),
-        (void*)0
-    );
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(
-        1,                  // location
-        3,                  // vec3
-        GL_FLOAT,
-        GL_FALSE,
-        5 * sizeof(float),  // stride
-        (void*)(2 * sizeof(float))
-    );
-    glEnableVertexAttribArray(1);
-
-    // Shader
-    glUseProgram(context.shaderProgram);
-
-    // Draw rectangle (2 triangles = 6 indices)
-    glDrawElements(
-        GL_TRIANGLES,
-        6,
-        GL_UNSIGNED_INT,
-        0
-    );
+    context.rectCount++;
 }
 
 void check_scale(float height, float width)
@@ -307,9 +277,15 @@ void input_callback(GLFWwindow* window, int key, int scancode, int action, int m
     }
 }
 
+static void glfw_error_callback(int error, const char* description)
+{
+    fprintf(stderr, "GLFW error %d: %s\n", error, description);
+}
 
 int main(void)
 {
+
+    glfwSetErrorCallback(glfw_error_callback);
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -320,7 +296,7 @@ int main(void)
     GLFWwindow* window = glfwCreateWindow(256, 144, "LearnOpenGL", NULL, NULL);
     if (window == NULL)
     {
-        printf("Failed to create GLFW window\n");
+        fprintf(stderr, "glfwInit() failed\n");
         glfwTerminate();
         return -1;
     }
@@ -336,28 +312,28 @@ int main(void)
 
     // Set window resize event to framebuffer_size_callback
     glfwGetWindowSize(window, &screenWidth, &screenHeight);
-    glViewport(0, 0, screenWidth, screenHeight);
-    check_scale((float)screenHeight, (float)screenWidth);
+    glfwSetWindowSizeCallback(window, framebuffer_size_callback);
 
     glfwSetKeyCallback(window, input_callback);
 
     // Create vertex shader
-    unsigned int vertexShader =
+    GLuint vertexShader =
         create_shader(GL_VERTEX_SHADER, "shaders/basic.vert");
 
     // Create fragment shader
-    unsigned int fragmentShader =
+    GLuint fragmentShader =
         create_shader(GL_FRAGMENT_SHADER, "shaders/basic.frag");
 
 
     // Create Shader Program
-    unsigned int shaders[2] = {
+    GLuint shaders[2] = {
         vertexShader,
         fragmentShader
     };
 
+
     context.shaderProgram =
-        create_shader_program(shaders, sizeof(shaders)/sizeof(unsigned int));
+        create_shader_program(shaders, ARRAYCOUNT(shaders));
 
     // Delete shaders - these aren't needed anymore since they exist within the program
     glDeleteShader(vertexShader);
@@ -370,12 +346,29 @@ int main(void)
     glGenBuffers(1, &context.EBO);
 
 
+    glBindBuffer(GL_ARRAY_BUFFER, context.VBO);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        sizeof(context.vertices),
+        NULL,
+        GL_DYNAMIC_DRAW
+    );
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context.EBO);
+    glBufferData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        sizeof(context.indices),
+        NULL,
+        GL_DYNAMIC_DRAW
+    );
 
 
     double previousTime = glfwGetTime();
     int frameCount = 0;
     while(!glfwWindowShouldClose(window))
     {
+        context.rectCount = 0;
+
         // Render here
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -393,14 +386,71 @@ int main(void)
 
                 DrawRectangle(
                 (vec2){
-                    10.0f+(float)x*(float)tileSize,
-                    10.0f+(float)y*(float)tileSize},
+                    30.0f+(float)x*(float)tileSize,
+                    30.0f+(float)y*(float)tileSize},
                 (vec2){
                     (float)tileSize,
                     (float)tileSize },
                 color);
             }
         }
+
+        // Bind VAO FIRST
+        glBindVertexArray(context.VAO);
+
+        // Upload vertices
+        glBindBuffer(GL_ARRAY_BUFFER, context.VBO);
+        glBufferSubData(
+            GL_ARRAY_BUFFER,
+            0,
+            (context.rectCount*4)*sizeof(*context.vertices),
+            context.vertices
+        );
+
+        // Upload indices
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context.EBO);
+        glBufferSubData(
+            GL_ELEMENT_ARRAY_BUFFER,
+            0,
+            (context.rectCount*6)*sizeof(*context.indices),
+            context.indices
+        );
+
+        // Position attribute: 3 floats
+        glVertexAttribPointer(
+            0,
+            2,
+            GL_FLOAT,
+            GL_FALSE,
+            sizeof(Vertex),
+            (void*)offsetof(Vertex, pos)
+        );
+        glEnableVertexAttribArray(0);
+
+        glVertexAttribPointer(
+            1,                  // location
+            3,                  // vec3
+            GL_FLOAT,
+            GL_FALSE,
+            sizeof(Vertex),  // stride
+            (void*)offsetof(Vertex, color)
+        );
+        glEnableVertexAttribArray(1);
+
+        // Shader
+        glUseProgram(context.shaderProgram);
+
+        // Draw rectangle (2 triangles = 6 indices)
+        glDrawElements(
+            GL_TRIANGLES,
+            context.rectCount*6,
+            GL_UNSIGNED_INT,
+            0
+        );
+
+        // Swap the buffers, then check and call events
+        glfwSwapBuffers(window);
+        glfwPollEvents();
 
         // region FPS
         frameCount++;
@@ -413,10 +463,6 @@ int main(void)
             previousTime = currentTime;
         }
         // endregion
-
-        // Swap the buffers, then check and call events
-        glfwSwapBuffers(window);
-        glfwPollEvents();
     }
 
     // Terminate glfw

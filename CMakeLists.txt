@@ -6,11 +6,16 @@ set(CMAKE_C_STANDARD 99)
 include(FetchContent)
 
 # --- glfw ---
+
 FetchContent_Declare(
         glfw
         GIT_REPOSITORY https://github.com/glfw/glfw.git
         GIT_TAG 3.5.1
 )
+set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
+set(GLFW_BUILD_X11 ON CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
 # --- SDL3 ---
 FetchContent_Declare(
@@ -19,7 +24,7 @@ FetchContent_Declare(
         GIT_TAG release-3.4.16
 )
 
-FetchContent_MakeAvailable(glfw sdl)
+FetchContent_MakeAvailable(glfw)
 
 
 # --- Client ---
@@ -44,7 +49,6 @@ target_include_directories(GLFWGame PRIVATE
 )
 target_link_libraries(GLFWGame PRIVATE
         glfw
-        SDL3::SDL3
 )
 
 add_custom_command(TARGET GLFWGame POST_BUILD
