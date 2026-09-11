@@ -7,6 +7,8 @@
 
 #include "GLFW/glfw3.h"
 
+#include <SDL3/SDL.h>
+
 #define BASE_WIDTH 256
 #define BASE_HEIGHT 144
 
