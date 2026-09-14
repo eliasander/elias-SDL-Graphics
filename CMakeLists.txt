@@ -24,7 +24,7 @@ FetchContent_Declare(
         GIT_TAG release-3.4.16
 )
 
-FetchContent_MakeAvailable(glfw)
+FetchContent_MakeAvailable(sdl glfw)
 
 
 # --- Client ---
@@ -49,6 +49,7 @@ target_include_directories(GLFWGame PRIVATE
 )
 target_link_libraries(GLFWGame PRIVATE
         glfw
+        SDL3::SDL3
 )
 
 add_custom_command(TARGET GLFWGame POST_BUILD

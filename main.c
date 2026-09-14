@@ -4,7 +4,12 @@
 #include <stdlib.h>
 #include <glad/glad.h>
 
+
 #include "GLFW/glfw3.h"
+
+#define SDL_MAIN_USE_CALLBACKS 1
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 
 #define BASE_WIDTH 256
 #define BASE_HEIGHT 144
@@ -242,14 +247,6 @@ unsigned int create_shader_program(unsigned int shaders[], int shaderCount)
     return program;
 }
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    glViewport(0, 0, width, height);
-    screenWidth = width;
-    screenHeight = height;
-    check_scale((float)height, (float)width);
-}
-
 void input_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     static bool vsync = true;
@@ -271,44 +268,53 @@ void input_callback(GLFWwindow* window, int key, int scancode, int action, int m
     }
 }
 
-static void glfw_error_callback(int error, const char* description)
+static SDL_Window *window = NULL;
+static SDL_GLContext contextGL;
+
+/* This function runs once at startup. */
+SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 {
-    fprintf(stderr, "GLFW error %d: %s\n", error, description);
-}
+    SDL_SetAppMetadata("Snake Squared", "1.0", "com.eliasander.snakesquared");
 
-int main(void)
-{
-
-    glfwSetErrorCallback(glfw_error_callback);
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-
-
-    GLFWwindow* window = glfwCreateWindow(256, 144, "LearnOpenGL", NULL, NULL);
-    if (window == NULL)
-    {
-        fprintf(stderr, "glfwInit() failed\n");
-        glfwTerminate();
-        return -1;
-    }
-    // Set current context
-    glfwMakeContextCurrent(window);
-
-    // Initalize glad
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
-        printf("Failed to initialize GLAD\n");
-        return -1;
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
+        return SDL_APP_FAILURE;
     }
 
-    // Set window resize event to framebuffer_size_callback
-    glfwGetWindowSize(window, &screenWidth, &screenHeight);
-    glfwSetWindowSizeCallback(window, framebuffer_size_callback);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                        SDL_GL_CONTEXT_PROFILE_CORE);
 
-    glfwSetKeyCallback(window, input_callback);
+    window = SDL_CreateWindow(
+        "My OpenGL App",
+        1280,
+        720,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
+    );
+    int w, h;
+    SDL_GetWindowSizeInPixels(window, &w, &h);
+
+    screenWidth = w;
+    screenHeight = h;
+
+    check_scale((float)h, (float)w);
+
+    if (!window)
+        return -1;
+
+    contextGL = SDL_GL_CreateContext(window);
+
+    if (!contextGL)
+        return -1;
+
+    // GLAD must be initialized AFTER the SDL OpenGL context exists.
+    if (!gladLoadGLLoader(
+            (GLADloadproc)SDL_GL_GetProcAddress))
+    {
+        return -1;
+    }
+
 
     // Create vertex shader
     GLuint vertexShader =
@@ -357,109 +363,196 @@ int main(void)
     );
 
 
-    double previousTime = glfwGetTime();
-    int frameCount = 0;
-    while(!glfwWindowShouldClose(window))
+
+
+    return SDL_APP_CONTINUE;  /* carry on with the program! */
+}
+
+/* This function runs when a new event (mouse input, keypresses, etc) occurs. */
+SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
+{
+    static bool vsync = true;
+    static bool wired = false;
+
+    switch (event->type)
     {
-        context.rectCount = 0;
+    case SDL_EVENT_QUIT:
+        return SDL_APP_SUCCESS;
 
-        // Render here
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        int tileSize = 6;
-        for (int y = 0; y < 15; y++)
+    case SDL_EVENT_KEY_DOWN:
         {
-            for (int x = 0; x < 17; x++)
+            // Ignore key-repeat events.
+            if (event->key.repeat)
+                break;
+
+            switch (event->key.key)
             {
-                vec3 color;
-                if ((x+y) % 2 == 0)
-                    color = MAPGREEN1;
+            case SDLK_ESCAPE:
+                return SDL_APP_SUCCESS;
+
+            case SDLK_E:
+                vsync = !vsync;
+
+                SDL_GL_SetSwapInterval(vsync ? 1 : 0);
+                break;
+
+            case SDLK_SPACE:
+                wired = !wired;
+
+                if (wired)
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
                 else
-                    color = MAPGREEN2;
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-                DrawRectangle(
-                (vec2){
-                    30.0f+(float)x*(float)tileSize,
-                    30.0f+(float)y*(float)tileSize},
-                (vec2){
-                    (float)tileSize,
-                    (float)tileSize },
-                color);
+                break;
             }
-        }
+        } break;
 
-        // Bind VAO FIRST
-        glBindVertexArray(context.VAO);
-
-        // Upload vertices
-        glBindBuffer(GL_ARRAY_BUFFER, context.VBO);
-        glBufferSubData(
-            GL_ARRAY_BUFFER,
-            0,
-            (context.rectCount*4)*sizeof(*context.vertices),
-            context.vertices
-        );
-
-        // Upload indices
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context.EBO);
-        glBufferSubData(
-            GL_ELEMENT_ARRAY_BUFFER,
-            0,
-            (context.rectCount*6)*sizeof(*context.indices),
-            context.indices
-        );
-
-        // Position attribute: 3 floats
-        glVertexAttribPointer(
-            0,
-            2,
-            GL_FLOAT,
-            GL_FALSE,
-            sizeof(Vertex),
-            (void*)offsetof(Vertex, pos)
-        );
-        glEnableVertexAttribArray(0);
-
-        glVertexAttribPointer(
-            1,                  // location
-            3,                  // vec3
-            GL_FLOAT,
-            GL_FALSE,
-            sizeof(Vertex),  // stride
-            (void*)offsetof(Vertex, color)
-        );
-        glEnableVertexAttribArray(1);
-
-        // Shader
-        glUseProgram(context.shaderProgram);
-
-        // Draw rectangle (2 triangles = 6 indices)
-        glDrawElements(
-            GL_TRIANGLES,
-            context.rectCount*6,
-            GL_UNSIGNED_INT,
-            0
-        );
-
-        // Swap the buffers, then check and call events
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-
-        // region FPS
-        frameCount++;
-        double currentTime = glfwGetTime();
-        if (currentTime - previousTime >= 1.0)
+    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
         {
-            printf("FPS: %i\n", frameCount);
+            int width;
+            int height;
 
-            frameCount = 0;
-            previousTime = currentTime;
-        }
-        // endregion
+            SDL_GetWindowSizeInPixels(
+                window,
+                &width,
+                &height
+            );
+
+            glViewport(0, 0, width, height);
+
+            screenWidth = width;
+            screenHeight = height;
+
+            check_scale(
+                (float)height,
+                (float)width
+            );
+        } break;
     }
 
-    // Terminate glfw
-    glfwTerminate();
-    return 0;
+    return SDL_APP_CONTINUE;
+}
+
+/* This function runs once per frame, and is the heart of the program. */
+SDL_AppResult SDL_AppIterate(void *appstate)
+{
+    // OpenGL code can now be used normally.
+    glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    context.rectCount = 0;
+
+    // Render here
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    int tileSize = 6;
+    for (int y = 0; y < 15; y++)
+    {
+        for (int x = 0; x < 17; x++)
+        {
+            vec3 color;
+            if ((x+y) % 2 == 0)
+                color = MAPGREEN1;
+            else
+                color = MAPGREEN2;
+
+            DrawRectangle(
+            (vec2){
+                30.0f+(float)x*(float)tileSize,
+                30.0f+(float)y*(float)tileSize},
+            (vec2){
+                (float)tileSize,
+                (float)tileSize },
+            color);
+        }
+    }
+
+    // Bind VAO FIRST
+    glBindVertexArray(context.VAO);
+
+    // Upload vertices
+    glBindBuffer(GL_ARRAY_BUFFER, context.VBO);
+    glBufferSubData(
+        GL_ARRAY_BUFFER,
+        0,
+        (context.rectCount*4)*sizeof(*context.vertices),
+        context.vertices
+    );
+
+    // Upload indices
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context.EBO);
+    glBufferSubData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        0,
+        (context.rectCount*6)*sizeof(*context.indices),
+        context.indices
+    );
+
+    // Position attribute: 3 floats
+    glVertexAttribPointer(
+        0,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)offsetof(Vertex, pos)
+    );
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(
+        1,                  // location
+        3,                  // vec3
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),  // stride
+        (void*)offsetof(Vertex, color)
+    );
+    glEnableVertexAttribArray(1);
+
+    // Shader
+    glUseProgram(context.shaderProgram);
+
+    // Draw rectangle (2 triangles = 6 indices)
+    glDrawElements(
+        GL_TRIANGLES,
+        context.rectCount*6,
+        GL_UNSIGNED_INT,
+        0
+    );
+    // render...
+
+    SDL_GL_SwapWindow(window);
+
+    // region FPS
+    static int frameCount = 0;
+    static double previousTime = 0.0;
+
+    frameCount++;
+
+    double currentTime =
+        (double)SDL_GetPerformanceCounter() /
+        (double)SDL_GetPerformanceFrequency();
+
+    if (currentTime - previousTime >= 1.0)
+    {
+        printf("FPS: %i\n", frameCount);
+
+        frameCount = 0;
+        previousTime = currentTime;
+    }
+    // endregion
+
+    return SDL_APP_CONTINUE;  /* carry on with the program! */
+}
+
+/* This function runs once at shutdown. */
+void SDL_AppQuit(void *appstate, SDL_AppResult result)
+{
+    /* SDL will clean up the window/renderer for us. */
+    SDL_GL_DestroyContext(contextGL);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
