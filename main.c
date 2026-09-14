@@ -1,5 +1,4 @@
 
-#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,8 +26,8 @@ typedef struct {
 } Vertex;
 
 typedef struct {
-    vec2 min;
-    vec2 max;
+    vec2 pos;
+    vec2 size;
     vec3 color;
 } RectInstance;
 
@@ -118,21 +117,16 @@ void DrawTriangle(vec2 pos, vec2 size, vec3 color)
 
 void DrawRectangle(vec2 pos, vec2 size, vec3 color)
 {
-    pos.x *= scale;
-    pos.y *= scale;
-
-    size.x *= scale;
-    size.y *= scale;
 
     float x =
-        pos.x / (float)screenWidth * 2.0f - 1.0f;
+        (pos.x*scale) / (float)screenWidth * 2.0f - 1.0f;
     float y =
-        1.0f - pos.y / (float)screenHeight * 2.0f;
+        1.0f - (pos.y*scale) / (float)screenHeight * 2.0f;
 
     float width  =
-        size.x / (float)screenWidth * 2.0f;
+        (size.x*scale) / (float)screenWidth * 2.0f;
     float height =
-        size.y / (float)screenHeight * 2.0f;
+        (size.y*scale) / (float)screenHeight * 2.0f;
 
     Vertex verticies[4] = {
         {x,         y,          color.x, color.y, color.z},
