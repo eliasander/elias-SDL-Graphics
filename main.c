@@ -5,7 +5,6 @@
 #include <glad/glad.h>
 
 
-#include "GLFW/glfw3.h"
 
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
@@ -246,28 +245,6 @@ unsigned int create_shader_program(unsigned int shaders[], int shaderCount)
     }
     return program;
 }
-
-void input_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    static bool vsync = true;
-    static bool wired = false;
-    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
-    {
-        vsync = !vsync;
-        glfwSwapInterval(vsync);
-    }
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-    {
-        wired = !wired;
-        if (wired)
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        else
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    }
-}
-
 static SDL_Window *window = NULL;
 static SDL_GLContext contextGL;
 
@@ -362,6 +339,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
         GL_DYNAMIC_DRAW
     );
 
+    SDL_GL_SetSwapInterval(1);
 
 
 
@@ -374,7 +352,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
     static bool vsync = true;
     static bool wired = false;
 
-    switch (event->type)
+    switch (event->type)    
     {
     case SDL_EVENT_QUIT:
         return SDL_APP_SUCCESS;
@@ -491,14 +469,14 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         context.indices
     );
 
-    // Position attribute: 3 floats
+    // Position attribute: 2 floats
     glVertexAttribPointer(
         0,
         2,
         GL_FLOAT,
         GL_FALSE,
         sizeof(Vertex),
-        (void*)offsetof(Vertex, pos)
+        (void*)0
     );
     glEnableVertexAttribArray(0);
 
@@ -508,7 +486,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         GL_FLOAT,
         GL_FALSE,
         sizeof(Vertex),  // stride
-        (void*)offsetof(Vertex, color)
+        (void*)(2 * sizeof(float))
     );
     glEnableVertexAttribArray(1);
 
