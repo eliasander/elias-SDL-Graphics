@@ -139,6 +139,20 @@ void DrawRectangle(vec2 pos, vec2 size, vec3 color)
         {x + width, y - height, color.x, color.y, color.z}
     };
 
+
+    RectInstance instance = {
+        .pos = {
+            x, y
+        },
+        .size = {
+            x+width, y-height
+        },
+        .color = 
+        {
+            color.x, color.y, color.z
+        }   
+    };
+
     for (int i = 0; i < 4; i++) {
         context.vertices[context.rectCount*4+i] = verticies[i];
     }
