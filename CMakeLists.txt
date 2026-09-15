@@ -6,6 +6,9 @@ set(CMAKE_C_STANDARD 99)
 include(FetchContent)
 
 # --- SDL3 ---
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
         sdl
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
@@ -36,7 +39,7 @@ target_include_directories(GLFWGame PRIVATE
         glad/include
 )
 target_link_libraries(GLFWGame PRIVATE
-        SDL3::SDL3
+        SDL3::SDL3-static
 )
 
 add_custom_command(TARGET GLFWGame POST_BUILD
