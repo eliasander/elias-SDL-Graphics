@@ -55,6 +55,9 @@ typedef struct
 
 static OpenGL_Context context;
 
+static RectInstance rects[1024];
+static int RectCount = 0;
+
 int screenWidth, screenHeight = 0;
 float scale = 1;
 
@@ -152,6 +155,7 @@ void DrawRectangle(vec2 pos, vec2 size, vec3 color)
             color.x, color.y, color.z
         }   
     };
+    rects[RectCount++] = instance;
 
     for (int i = 0; i < 4; i++) {
         context.vertices[context.rectCount*4+i] = verticies[i];
@@ -435,6 +439,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
     glClear(GL_COLOR_BUFFER_BIT);
 
     context.rectCount = 0;
+    RectCount = 0;
 
     // Render here
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
