@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <glad/glad.h>
 
 
@@ -336,26 +337,20 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
 
     // Generate buffers
-    glGenBuffers(1, &context.VBO);
     glGenVertexArrays(1, &context.VAO);
+    glGenBuffers(1, &context.VBO);
     glGenBuffers(1, &context.EBO);
 
+    // Bind VAO FIRST so EBO/VBO bindings are captured inside it
+    glBindVertexArray(context.VAO);
 
     glBindBuffer(GL_ARRAY_BUFFER, context.VBO);
-    glBufferData(
-        GL_ARRAY_BUFFER,
-        sizeof(context.vertices),
-        NULL,
-        GL_DYNAMIC_DRAW
-    );
+    glBufferData(GL_ARRAY_BUFFER, sizeof(context.vertices), NULL, GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context.EBO);
-    glBufferData(
-        GL_ELEMENT_ARRAY_BUFFER,
-        sizeof(context.indices),
-        NULL,
-        GL_DYNAMIC_DRAW
-    );
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(context.indices), NULL, GL_DYNAMIC_DRAW);
+
+    glBindVertexArray(0); // Unbind
 
     SDL_GL_SetSwapInterval(1);
 
@@ -395,11 +390,13 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
             case SDLK_SPACE:
                 wired = !wired;
 
+                printf("Wired mode: %s\n", wired ? "ON" : "OFF");                    
+
+
                 if (wired)
                     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
                 else
                     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
                 break;
             }
         } break;
@@ -433,11 +430,6 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
 /* This function runs once per frame, and is the heart of the program. */
 SDL_AppResult SDL_AppIterate(void *appstate)
 {
-    // OpenGL code can now be used normally.
-    glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
-
-    glClear(GL_COLOR_BUFFER_BIT);
-
     context.rectCount = 0;
     RectCount = 0;
 
@@ -495,7 +487,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         GL_FLOAT,
         GL_FALSE,
         sizeof(Vertex),
-        (void*)0
+        (void*)offsetof(Vertex, pos)
     );
     glEnableVertexAttribArray(0);
 
@@ -505,7 +497,7 @@ SDL_AppResult SDL_AppIterate(void *appstate)
         GL_FLOAT,
         GL_FALSE,
         sizeof(Vertex),  // stride
-        (void*)(2 * sizeof(float))
+        (void*)offsetof(Vertex, color)
     );
     glEnableVertexAttribArray(1);
 
