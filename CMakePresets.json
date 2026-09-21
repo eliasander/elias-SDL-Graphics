@@ -2,9 +2,35 @@
     "version": 8,
     "configurePresets": [
         {
-            "name": "Debug",
-            "displayName": "Debug - Clang Linux x86_64",
+            "name": "Debug - GCC",
+            "displayName": "Debug - GCC",
+            "description": "Using compilers: C = gcc, CXX = g++",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "Release - GCC",
+            "displayName": "Release - GCC",
+            "description": "Using compilers: C = gcc, CXX = g++",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        }, {
+            "name": "Debug - Clang",
+            "displayName": "Debug - Clang",
             "description": "Using compilers: C = clang, CXX = clang++",
+            "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "cacheVariables": {
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
@@ -14,9 +40,10 @@
             }
         },
         {
-            "name": "Release",
-            "displayName": "Release - Clang Linux x86_64",
+            "name": "Release - Clang",
+            "displayName": "Release - Clang",
             "description": "Using compilers: C = clang, CXX = clang++",
+            "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "cacheVariables": {
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
@@ -28,16 +55,28 @@
     ],
     "buildPresets": [
         {
-            "name": "Debug - Clang Linux x86_64",
+            "name": "Debug - GCC",
             "description": "",
             "displayName": "",
-            "configurePreset": "Debug"
+            "configurePreset": "Debug - GCC"
         },
         {
-            "name": "Release - Clang Linux x86_64",
+            "name": "Release - GCC",
             "description": "",
             "displayName": "",
-            "configurePreset": "Release"
+            "configurePreset": "Release - GCC"
+        },
+        {
+            "name": "Debug - Clang",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "Debug - Clang"
+        },
+        {
+            "name": "Release - Clang",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "Release - Clang"
         }
     ]
 }
