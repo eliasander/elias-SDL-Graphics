@@ -26,7 +26,8 @@ file(GLOB SOURCES CONFIGURE_DEPENDS
         glad/include/*.h
 )
 
-add_executable(GLFWGame ${SOURCES})
+add_executable(GLFWGame ${SOURCES}
+        library.c)
 target_compile_definitions(GLFWGame PRIVATE
         $<$<CONFIG:Debug>:DEBUG>
 )
