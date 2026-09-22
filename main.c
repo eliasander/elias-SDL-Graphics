@@ -1,12 +1,11 @@
-#include "library.h"
-
-
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <glad/glad.h>
+#include <stddef.h>
 
+#include <glad/glad.h>
 #include <SDL3/SDL.h>
+
+#include "library.h"
 
 #define BASE_WIDTH 256
 #define BASE_HEIGHT 144
