@@ -8,13 +8,10 @@
 
 #define ARRAYCOUNT(arr) sizeof(arr)/sizeof(*(arr))
 
-
-
-
-static OpenGL_Context context = {0};
-
 int screenWidth, screenHeight = 0;
 float scale = 1;
+
+OpenGL_Context context = {0};
 
 void DrawTriangle(vec2 pos, vec2 size, vec3 color)
 {
@@ -79,6 +76,7 @@ void DrawTriangle(vec2 pos, vec2 size, vec3 color)
 
 void DrawRectangle(vec2 pos, vec2 size, vec3 color)
 {
+    if (context.rectCount > 500) return;
 
     float x =
         (pos.x*scale) / (float)screenWidth * 2.0f - 1.0f;

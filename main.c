@@ -11,76 +11,60 @@
 #define BASE_WIDTH 256
 #define BASE_HEIGHT 144
 
-
-/* This function runs when a new event (mouse input, keypresses, etc) occurs. */
-/*
-SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
+bool HandleEvents(SDL_Window *window)
 {
     static bool vsync = true;
     static bool wired = false;
+    SDL_Event event;
 
-    switch (event->type)    
+    while (SDL_PollEvent(&event))
     {
-    case SDL_EVENT_QUIT:
-        return SDL_APP_SUCCESS;
-
-    case SDL_EVENT_KEY_DOWN:
+        switch (event.type)
         {
-            // Ignore key-repeat events.
-            if (event->key.repeat)
+            case SDL_EVENT_QUIT:
+                return false; // signal "stop running"
+
+            case SDL_EVENT_KEY_DOWN:
+                if (event.key.repeat)
+                    break;
+
+                switch (event.key.key)
+                {
+                    case SDLK_ESCAPE:
+                        return false;
+
+                    case SDLK_E:
+                        vsync = !vsync;
+                        SDL_GL_SetSwapInterval(vsync ? 1 : 0);
+                        break;
+
+                    case SDLK_SPACE:
+                        wired = !wired;
+                        glPolygonMode(GL_FRONT_AND_BACK, wired ? GL_LINE : GL_FILL);
+                        break;
+                }
                 break;
 
-            switch (event->key.key)
+            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
             {
-            case SDLK_ESCAPE:
-                return SDL_APP_SUCCESS;
+                int width, height;
+                SDL_GetWindowSizeInPixels(window, &width, &height);
 
-            case SDLK_E:
-                vsync = !vsync;
+                /*
+                glViewport(0, 0, width, height);
+                screenWidth = width;
+                screenHeight = height;
 
-                SDL_GL_SetSwapInterval(vsync ? 1 : 0);
-                break;
-
-            case SDLK_SPACE:
-                wired = !wired;
-
-                if (wired)
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-                else
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-                break;
-            }
-        } break;
-
-    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-        {
-            int width;
-            int height;
-
-            SDL_GetWindowSizeInPixels(
-                window,
-                &width,
-                &height
-            );
-
-            glViewport(0, 0, width, height);
-
-            screenWidth = width;
-            screenHeight = height;
-
-            check_scale(
-                (float)height,
-                (float)width
-            );
-        } break;
+                check_scale((float)height, (float)width, BASE_WIDTH, BASE_HEIGHT);
+                */
+            } break;
+        }
     }
 
-    return SDL_APP_CONTINUE;
+    return true; // keep running
 }
-*/
 
-void main() {
+int main() {
 
     SDL_Window* window = CreateWindow();
     SDL_GLContext contextGL = CreateOpenGLContext();
@@ -118,112 +102,116 @@ void main() {
 
     glBindVertexArray(0); // Unbind
 
+    bool running = true;
 
-    while (true) {
+    while (running) {
+        running = HandleEvents(window);
         context.rectCount = 0;
-    int RectCount = 0;
 
-    // Render here
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+        // Render here
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
 
-    int tileSize = 6;
-    for (int y = 0; y < 15; y++)
-    {
-        for (int x = 0; x < 17; x++)
+
+        int tileSize = 6;
+        for (int y = 0; y < 15; y++)
         {
-            vec3 color;
-            if ((x+y) % 2 == 0)
-                color = MAPGREEN1;
-            else
-                color = MAPGREEN2;
+            for (int x = 0; x < 17; x++)
+            {
+                vec3 color;
+                if ((x+y) % 2 == 0)
+                    color = MAPGREEN1;
+                else
+                    color = MAPGREEN2;
 
-            DrawRectangle(
-            (vec2){
-                30.0f+(float)x*(float)tileSize,
-                30.0f+(float)y*(float)tileSize},
-            (vec2){
-                (float)tileSize,
-                (float)tileSize },
-            color);
+                DrawRectangle(
+                (vec2){
+                    30.0f+(float)x*(float)tileSize,
+                    30.0f+(float)y*(float)tileSize},
+                (vec2){
+                    (float)tileSize,
+                    (float)tileSize },
+                color);
+            }
         }
+
+        // Bind VAO FIRST
+        glBindVertexArray(context.VAO);
+
+        // Upload vertices
+        glBindBuffer(GL_ARRAY_BUFFER, context.VBO);
+        glBufferSubData(
+            GL_ARRAY_BUFFER,
+            0,
+            (context.rectCount*4)*sizeof(*context.vertices),
+            context.vertices
+        );
+
+        // Upload indices
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context.EBO);
+        glBufferSubData(
+            GL_ELEMENT_ARRAY_BUFFER,
+            0,
+            (context.rectCount*6)*sizeof(*context.indices),
+            context.indices
+        );
+
+        // Position attribute: 2 floats
+        glVertexAttribPointer(
+            0,
+            2,
+            GL_FLOAT,
+            GL_FALSE,
+            sizeof(Vertex),
+            (void*)offsetof(Vertex, pos)
+        );
+        glEnableVertexAttribArray(0);
+
+        glVertexAttribPointer(
+            1,                  // location
+            3,                  // vec3
+            GL_FLOAT,
+            GL_FALSE,
+            sizeof(Vertex),  // stride
+            (void*)offsetof(Vertex, color)
+        );
+        glEnableVertexAttribArray(1);
+
+        // Shader
+        glUseProgram(context.shaderProgram);
+
+        // Draw rectangle (2 triangles = 6 indices)
+        glDrawElements(
+            GL_TRIANGLES,
+            context.rectCount*6,
+            GL_UNSIGNED_INT,
+            0
+        );
+        // render...
+
+        SDL_GL_SwapWindow(window);
+
+        // region FPS
+        static int frameCount = 0;
+        static double previousTime = 0.0;
+
+        frameCount++;
+
+        double currentTime =
+            (double)SDL_GetPerformanceCounter() /
+            (double)SDL_GetPerformanceFrequency();
+
+        if (currentTime - previousTime >= 1.0)
+        {
+            printf("FPS: %i\n", frameCount);
+
+            frameCount = 0;
+            previousTime = currentTime;
+        }
+        // endregion
     }
 
-    // Bind VAO FIRST
-    glBindVertexArray(context.VAO);
-
-    // Upload vertices
-    glBindBuffer(GL_ARRAY_BUFFER, context.VBO);
-    glBufferSubData(
-        GL_ARRAY_BUFFER,
-        0,
-        (context.rectCount*4)*sizeof(*context.vertices),
-        context.vertices
-    );
-
-    // Upload indices
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context.EBO);
-    glBufferSubData(
-        GL_ELEMENT_ARRAY_BUFFER,
-        0,
-        (context.rectCount*6)*sizeof(*context.indices),
-        context.indices
-    );
-
-    // Position attribute: 2 floats
-    glVertexAttribPointer(
-        0,
-        2,
-        GL_FLOAT,
-        GL_FALSE,
-        sizeof(Vertex),
-        (void*)offsetof(Vertex, pos)
-    );
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(
-        1,                  // location
-        3,                  // vec3
-        GL_FLOAT,
-        GL_FALSE,
-        sizeof(Vertex),  // stride
-        (void*)offsetof(Vertex, color)
-    );
-    glEnableVertexAttribArray(1);
-
-    // Shader
-    glUseProgram(context.shaderProgram);
-
-    // Draw rectangle (2 triangles = 6 indices)
-    glDrawElements(
-        GL_TRIANGLES,
-        context.rectCount*6,
-        GL_UNSIGNED_INT,
-        0
-    );
-    // render...
-
-    SDL_GL_SwapWindow(window);
-
-    // region FPS
-    static int frameCount = 0;
-    static double previousTime = 0.0;
-
-    frameCount++;
-
-    double currentTime =
-        (double)SDL_GetPerformanceCounter() /
-        (double)SDL_GetPerformanceFrequency();
-
-    if (currentTime - previousTime >= 1.0)
-    {
-        printf("FPS: %i\n", frameCount);
-
-        frameCount = 0;
-        previousTime = currentTime;
-    }
-    // endregion
-    }
-
+    SDL_DestroyWindow(window);
+    SDL_GL_DestroyContext(contextGL);
     SDL_Quit();
 }

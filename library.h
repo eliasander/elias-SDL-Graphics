@@ -48,7 +48,7 @@ typedef struct
     unsigned int rectCount;
 } OpenGL_Context;
 
-static OpenGL_Context context;
+extern OpenGL_Context context;
 
 SDL_Window* CreateWindow();
 SDL_GLContext CreateOpenGLContext();
