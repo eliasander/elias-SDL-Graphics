@@ -5,6 +5,7 @@
 #include <SDL3/SDL.h>
 
 #define ARRAYCOUNT(arr) sizeof(arr)/sizeof(*(arr))
+extern bool WindowShouldClose;
 
 
 #define RED (vec3){1.0, 0.0, 0.0}
@@ -13,6 +14,14 @@
 #define WHITE (vec3){1.0, 1.0, 1.0}
 #define MAPGREEN1 (vec3){0.22, 0.67, 0.35}
 #define MAPGREEN2 (vec3){0.14, 0.53, 0.24}
+
+
+
+typedef bool (*EventCallback)(SDL_Window *window, SDL_Event event);
+bool setEventCallback(SDL_Window *window, EventCallback callback);
+
+// 2. Global storage for the callback function pointer
+extern EventCallback g_eventCallback;
 
 
 typedef struct
@@ -69,5 +78,10 @@ void DeleteShader(Shader shader);
 
 void DrawRectangle(vec2 pos, vec2 size, vec3 color);
 
+void StartFrame(SDL_Window* window);
+void EndFrame(SDL_Window* window);
+
 
 #endif // ELIAS_SDL_GRAPHICS_LIBRARY_H
+
+void check_scale(float height, float width, float base_width, float base_height);

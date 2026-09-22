@@ -7,11 +7,25 @@
 #include <SDL3/SDL.h>
 
 #define ARRAYCOUNT(arr) sizeof(arr)/sizeof(*(arr))
+bool WindowShouldClose = false;
 
 int screenWidth, screenHeight = 0;
 float scale = 1;
 
 OpenGL_Context context = {0};
+
+// Function callbacks
+EventCallback g_eventCallback;
+// 3. Setter function returning int (0 = Success, -1 = Error)
+bool setEventCallback(SDL_Window *window, EventCallback callback) {
+    if (!window) {
+        return false; // Return error code if window is NULL
+    }
+
+    g_eventCallback = callback;
+    return true; // Return true for success
+}
+
 
 void DrawTriangle(vec2 pos, vec2 size, vec3 color)
 {
@@ -129,6 +143,8 @@ void check_scale(float height, float width, float base_width, float base_height)
 {
     float scaleX = width / base_width;
     float scaleY = height / base_height;
+    screenWidth = width;
+    screenHeight = height;
     if (scaleX < scaleY)
         scale = scaleX;
     else
@@ -273,4 +289,28 @@ int CreateShaderProgram(Shader shaders[], int shaderCount) {
 
 void DeleteShader(Shader shader) {
     glDeleteShader(shader.shader);
+}
+
+
+void pollEvents(SDL_Window* window) {
+    if (g_eventCallback == NULL) return;
+
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        g_eventCallback(window, event);
+    }
+}
+
+void StartFrame(SDL_Window* window) {
+    pollEvents(window);
+
+    return;
+}
+
+
+
+void EndFrame(SDL_Window* window) {
+    SDL_GL_SwapWindow(window);
+
+    return;
 }

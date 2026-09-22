@@ -10,54 +10,46 @@
 #define BASE_WIDTH 256
 #define BASE_HEIGHT 144
 
-bool HandleEvents(SDL_Window *window)
+bool HandleEvents(SDL_Window *window, SDL_Event event)
 {
     static bool vsync = true;
     static bool wired = false;
-    SDL_Event event;
-
-    while (SDL_PollEvent(&event))
+    switch (event.type)
     {
-        switch (event.type)
-        {
-            case SDL_EVENT_QUIT:
-                return false; // signal "stop running"
+        case SDL_EVENT_QUIT:
+            WindowShouldClose = true;
+            return false;
 
-            case SDL_EVENT_KEY_DOWN:
-                if (event.key.repeat)
-                    break;
-
-                switch (event.key.key)
-                {
-                    case SDLK_ESCAPE:
-                        return false;
-
-                    case SDLK_E:
-                        vsync = !vsync;
-                        SDL_GL_SetSwapInterval(vsync ? 1 : 0);
-                        break;
-
-                    case SDLK_SPACE:
-                        wired = !wired;
-                        glPolygonMode(GL_FRONT_AND_BACK, wired ? GL_LINE : GL_FILL);
-                        break;
-                }
+        case SDL_EVENT_KEY_DOWN:
+            if (event.key.repeat)
                 break;
 
-            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+            switch (event.key.key)
             {
-                int width, height;
-                SDL_GetWindowSizeInPixels(window, &width, &height);
+                case SDLK_ESCAPE:
+                    WindowShouldClose = true;
+                    return false;
 
-                /*
-                glViewport(0, 0, width, height);
-                screenWidth = width;
-                screenHeight = height;
+                case SDLK_E:
+                    vsync = !vsync;
+                    SDL_GL_SetSwapInterval(vsync ? 1 : 0);
+                    break;
 
-                check_scale((float)height, (float)width, BASE_WIDTH, BASE_HEIGHT);
-                */
-            } break;
-        }
+                case SDLK_SPACE:
+                    wired = !wired;
+                    glPolygonMode(GL_FRONT_AND_BACK, wired ? GL_LINE : GL_FILL);
+                    break;
+            }
+            break;
+
+        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+        {
+            int width, height;
+            SDL_GetWindowSizeInPixels(window, &width, &height);
+
+            glViewport(0, 0, width, height);
+            check_scale((float)height, (float)width, BASE_WIDTH, BASE_HEIGHT);
+        } break;
     }
 
     return true; // keep running
@@ -78,6 +70,8 @@ int main() {
         vertexShader,
         fragmentShader
     };
+
+    setEventCallback(window, HandleEvents);
 
     CreateShaderProgram(shaders, ARRAYCOUNT(shaders));
 
@@ -101,10 +95,9 @@ int main() {
 
     glBindVertexArray(0); // Unbind
 
-    bool running = true;
 
-    while (running) {
-        running = HandleEvents(window);
+    while (!WindowShouldClose) {
+        StartFrame(window);
         context.rectCount = 0;
 
         // Render here
@@ -188,7 +181,7 @@ int main() {
         );
         // render...
 
-        SDL_GL_SwapWindow(window);
+        EndFrame(window);
 
         // region FPS
         static int frameCount = 0;
