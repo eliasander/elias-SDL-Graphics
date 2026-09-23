@@ -22,7 +22,7 @@
 #define MAPGREEN2 (vec4){69, 170, 85, 1.0}
 #define BACKGROUND_COLOR (vec4){73, 154, 213, 1.0}
 #define SNAKE_COLOR (vec4){27, 118, 255, 1.0};
-#define APPLE_COLOR (vec4){170, 0, 0, 1.0};
+#define APPLE_COLOR (vec4){170, 50, 50, 1.0};
 
 #define SNAKE_START_LENGTH 3
 #define SNAKE_MAX_LENGTH 128
@@ -58,6 +58,7 @@ Snake snake;
 Food food[FOOD_MAX_AMOUNT];
 int foodCount;
 bool dead = false;
+bool block_snake_input = false;
 
 
 long long current_time_ms(void) {
@@ -81,7 +82,6 @@ long long current_time_ms(void) {
     #endif
 }
 
-bool block_snake_input = false;
 
 void snakeInit() {
     srand((unsigned)time(NULL));
@@ -193,6 +193,7 @@ bool HandleEvents(SDL_Window *window, SDL_Event event)
 {
     static bool vsync = true;
     static bool wired = false;
+    static bool fullscreen = false;
     switch (event.type)
     {
         case SDL_EVENT_QUIT:
@@ -228,6 +229,11 @@ bool HandleEvents(SDL_Window *window, SDL_Event event)
                     }
                     break;
 
+                case SDLK_F:
+                    SDL_SetWindowFullscreen(window, fullscreen);
+                    fullscreen = !fullscreen;
+                    break;
+
                 case SDLK_W:
                     if (*dir != 2 && !block_snake_input) {
                         *dir = 0;
@@ -256,14 +262,8 @@ bool HandleEvents(SDL_Window *window, SDL_Event event)
 
             break;
 
-        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-        {
-            int width, height;
-            SDL_GetWindowSizeInPixels(window, &width, &height);
-
-            glViewport(0, 0, width, height);
-            check_scale((float)height, (float)width, BASE_WIDTH, BASE_HEIGHT);
-        } break;
+        default:
+            break;
     }
 
     return true; // keep running
@@ -273,6 +273,14 @@ int main() {
 
     SDL_Window* window = CreateWindow();
     SDL_GLContext contextGL = CreateOpenGLContext();
+
+    SetFlag(EOS_WINDOW_LETTERBOXING);
+
+    
+
+    int w,h;
+    SDL_GetWindowSizeInPixels(window, &w, &h);
+    compute_viewport(w, h, BASE_WIDTH, BASE_HEIGHT);
 
     Shader vertexShader =
         CreateShader(GL_VERTEX_SHADER, "shaders/basic.vert");

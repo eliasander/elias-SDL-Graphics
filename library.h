@@ -7,11 +7,14 @@
 #define ARRAYCOUNT(arr) sizeof(arr)/sizeof(*(arr))
 extern bool WindowShouldClose;
 
-
 #define RED (vec3){255, 0, 0}
 #define GREEN (vec3){0, 255, 0}
 #define BLUE (vec3){0, 0, 255}
 #define WHITE (vec3){255, 255, 255}
+
+// FLAGS
+
+#define EOS_WINDOW_LETTERBOXING (1ULL << 0)
 
 typedef struct
 {
@@ -38,9 +41,14 @@ typedef struct {
     vec4 color;
 } RectInstance;
 
+typedef struct { 
+    float x, y, w, h, scale; 
+} Viewport;
+
 
 typedef struct
 {
+    unsigned long long flags[32];
     GLuint VBO;
     GLuint VAO;
     GLuint EBO;
@@ -58,6 +66,7 @@ extern OpenGL_Context context;
 
 // Value 0.0-1.0, if set to 0.8 then it is darkened to 80% of what the original is.
 vec4 darken(vec4 color, float value);
+void SetFlag(unsigned long long flag);
 
 
 
@@ -98,5 +107,6 @@ void Clear(vec4 color);
 void EndFrame(SDL_Window* window);
 
 
-void check_scale(float height, float width, float base_width, float base_height);
+float check_scale(float height, float width, float base_width, float base_height);
+Viewport compute_viewport(float win_w, float win_h, float game_w, float game_h);
 #endif // ELIAS_SDL_GRAPHICS_LIBRARY_H

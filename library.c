@@ -1,5 +1,7 @@
 #include "library.h"
 
+#include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <glad/glad.h>
@@ -10,7 +12,11 @@
 bool WindowShouldClose = false;
 
 int screenWidth, screenHeight = 0;
+int baseWidth, baseHeight = 0;
+int renderWidth, renderHeight = 0;
 float scale = 1;
+
+Viewport v = {0};
 
 OpenGL_Context context = {0};
 
@@ -46,12 +52,6 @@ bool setEventCallback(SDL_Window *window, EventCallback callback) {
 
 void DrawTriangle(vec2 pos, vec2 size, vec3 color)
 {
-    pos.x *= scale;
-    pos.y *= scale;
-
-    size.x *= scale;
-    size.y *= scale;
-
     // NDC = Normalized Device Coordinates (-1 - 1)
 
     float x =
@@ -108,7 +108,7 @@ void DrawTriangle(vec2 pos, vec2 size, vec3 color)
 
 void DrawRectangle(vec2 pos, vec2 size, vec4 color)
 {
-    if (context.rectCount > 500) return;
+    if (context.rectCount > 1024) return;
 
     float x =
         (pos.x*scale) / (float)screenWidth * 2.0f - 1.0f;
@@ -159,16 +159,16 @@ void DrawRectangle(vec2 pos, vec2 size, vec4 color)
     context.rectCount++;
 }
 
-void check_scale(float height, float width, float base_width, float base_height)
+float check_scale(float height, float width, float base_width, float base_height)
 {
     float scaleX = width / base_width;
     float scaleY = height / base_height;
     screenWidth = width;
     screenHeight = height;
     if (scaleX < scaleY)
-        scale = scaleX;
+        return scaleX;
     else
-        scale = scaleY;
+        return scaleY;
 }
 
 char *read_file(const char *path)
@@ -204,6 +204,19 @@ char *read_file(const char *path)
 
 static SDL_Window *window = NULL;
 static SDL_GLContext contextGL;
+int flagCount = 0;
+
+void SetFlag(unsigned long long flag) {
+    context.flags[flagCount++] = flag;
+}
+
+bool HasFlag(unsigned long long flag) {
+    for (int i = 0; i < flagCount; i++) {
+        if (context.flags[i] & flag)
+            return true;
+    }
+    return false;
+}
 
 SDL_Window* CreateWindow() {
 
@@ -230,8 +243,6 @@ SDL_Window* CreateWindow() {
 
     screenWidth = w;
     screenHeight = h;
-
-    check_scale((float)h, (float)w, 256, 144);
 
     if (!window)
         return NULL;
@@ -317,6 +328,19 @@ void pollEvents(SDL_Window* window) {
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+        switch (event.type)
+        {
+            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+            {
+                int width, height;
+                SDL_GetWindowSizeInPixels(window, &width, &height);
+                compute_viewport(width, height, baseWidth, baseHeight);
+                scale = check_scale(renderHeight, renderWidth, baseWidth, baseHeight);
+                
+            } break;
+        }
+
+
         g_eventCallback(window, event);
     }
 }
@@ -328,6 +352,16 @@ void StartFrame(SDL_Window* window) {
 }
 
 void Clear(vec4 color) {
+    if (HasFlag(EOS_WINDOW_LETTERBOXING)) {
+        glDisable(GL_SCISSOR_TEST);
+        glViewport(0, 0, screenWidth, screenHeight);
+        glClearColor(0, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glViewport(v.x, v.y, v.w, v.h);
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(v.x, v.y, v.w, v.h);
+    }
     colorConvert(&color);
     glClearColor(color.x, color.y, color.z, color.w);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -339,4 +373,23 @@ void EndFrame(SDL_Window* window) {
     SDL_GL_SwapWindow(window);
 
     return;
+}
+
+Viewport compute_viewport(float win_w, float win_h, float game_w, float game_h) {
+    float scale = fminf(win_w / game_w, win_h / game_h);
+    screenWidth = win_w;
+    screenHeight = win_h;
+    baseWidth = game_w;
+    baseHeight = game_h;
+    v.scale = scale;
+    v.w = game_w * scale;
+    v.h = game_h * scale;
+
+    v.x = (win_w - v.w) * 0.5f;
+    v.y = (win_h - v.h) * 0.5f;
+
+    renderWidth = v.w;
+    renderHeight = v.h;
+
+    return v;
 }
