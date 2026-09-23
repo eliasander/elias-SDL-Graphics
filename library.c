@@ -22,6 +22,15 @@ void colorConvert(vec4 *color) {
     color->z/=255;
 }
 
+vec4 darken(vec4 color, float value) {
+    color.x*=value;
+    color.y*=value;
+    color.z*=value;
+
+    return color;
+}
+
+
 // Function callbacks
 EventCallback g_eventCallback;
 // 3. Setter function returning int (0 = Success, -1 = Error)

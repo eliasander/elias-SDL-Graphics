@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
+#include <math.h>
 
 #include <glad/glad.h>
 #include <SDL3/SDL.h>
@@ -12,7 +14,7 @@
 #define BASE_WIDTH 1920
 #define BASE_HEIGHT 1080
 
-#define MAP_SIZE (vec2){17,15}
+#define MAP_SIZE (vec2){10,9}
 #define TILE_SIZE 40
 
 #define MAP_BORDER (vec4){124, 119, 62, 1.0}
@@ -20,10 +22,13 @@
 #define MAPGREEN2 (vec4){69, 170, 85, 1.0}
 #define BACKGROUND_COLOR (vec4){73, 154, 213, 1.0}
 #define SNAKE_COLOR (vec4){27, 118, 255, 1.0};
-#define APPLE_COLOR (vec4){217, 0, 0, 1.0};
+#define APPLE_COLOR (vec4){170, 0, 0, 1.0};
 
+#define SNAKE_START_LENGTH 3
 #define SNAKE_MAX_LENGTH 128
-#define SNAKE_MOVE_DELAY 150 // ms
+#define SNAKE_MOVE_DELAY 250 // ms
+
+#define FOOD_MAX_AMOUNT 5
 
 typedef struct {
     // Position on board, gos from -MAP_SIZE/2 to MAP_SIZE/2
@@ -44,9 +49,145 @@ typedef struct {
     
 } Snake;
 
+typedef struct {
+    bool exist;
+    vec2 pos;
+} Food;
+
+Snake snake;
+Food food[FOOD_MAX_AMOUNT];
+int foodCount;
+bool dead = false;
 
 
+long long current_time_ms(void) {
+    #ifdef _WIN32
+    #include <windows.h>
 
+    FILETIME ft;    
+    GetSystemTimeAsFileTime(&ft);
+    ULARGE_INTEGER ull;
+    ull.LowPart = ft.dwLowDateTime;
+    ull.HighPart = ft.dwHighDateTime;
+    // FILETIME is 100-ns intervals since 1601; convert to Unix ms epoch
+    return (long long)(ull.QuadPart / 10000ULL - 11644473600000ULL);
+
+    #else
+    
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+
+    #endif
+}
+
+bool block_snake_input = false;
+
+void snakeInit() {
+    srand((unsigned)time(NULL));
+
+    snake.length = SNAKE_START_LENGTH;
+    for (int i = 0; i < SNAKE_MAX_LENGTH; i++) {
+        snake.part[i].pos = (vec2){roundf(MAP_SIZE.x/2), roundf(MAP_SIZE.y/2)};
+        snake.part[i].dir = -1; // Uninitalized direction
+    };
+    snake.head = &snake.part[0];
+    snake.head->dir = 0;
+
+}
+
+void snakeTick(Snake *snake) {
+    Snake next_snake = *snake;
+    next_snake.head = &next_snake.part[0];
+    time_t snake_last_tick = time(NULL);
+
+    for (int i = 0; i < next_snake.length; i++) {
+        if (i > 0 && i < 128) {
+            next_snake.part[i] = snake->part[i-1];
+        }
+        else if (i == 0) {
+            switch (next_snake.head->dir) {
+                case 0:
+                    next_snake.head->pos.y--;
+                    break;
+                case 1:
+                    next_snake.head->pos.x++;
+                    break;
+                case 2:
+                    next_snake.head->pos.y++;
+                    break;
+                case 3:
+                    next_snake.head->pos.x--;
+                    break;
+                default:
+                    break;
+            }
+
+            for (int j = 0; j < FOOD_MAX_AMOUNT; j++) {
+                if (food[j].exist == false)
+                    continue;
+
+                if (next_snake.head->pos.x == food[j].pos.x && next_snake.head->pos.y == food[j].pos.y) {
+                    next_snake.length++;
+                    next_snake.part[next_snake.length] = snake->part[snake->length];
+                    food[j].exist = false;
+                    foodCount--;
+                }
+            }
+
+
+            for (int j = 1; j < next_snake.length; j++) {
+                if (next_snake.head->pos.x == next_snake.part[j].pos.x && next_snake.head->pos.y == next_snake.part[j].pos.y)
+                    dead = true;
+                else if (next_snake.head->pos.x == -1 || next_snake.head->pos.x == MAP_SIZE.x || next_snake.head->pos.y == -1 || next_snake.head->pos.y == MAP_SIZE.y )
+                    dead = true;
+            }
+        }
+
+    }
+    
+    block_snake_input = false;
+    if (!dead) {
+        memcpy(snake->part, next_snake.part, sizeof(SnakePart)*SNAKE_MAX_LENGTH);
+        snake->length = next_snake.length;
+    }
+    return;
+}
+
+void spawnApple() {
+    int x;
+    int y;
+
+    bool cell_free;
+    do {
+        x = rand() % (int)MAP_SIZE.x;
+        y = rand() % (int)MAP_SIZE.y;
+
+        cell_free = true;
+        for (int i = 0; i < snake.length; i++) {
+            if (x == snake.part[i].pos.x && y == snake.part[i].pos.y) {
+                cell_free = false;
+                break;
+            }
+        }
+    } while (!cell_free);
+
+    int i = -1;
+    for (int j = 0; j < FOOD_MAX_AMOUNT; j++) {
+        if (food[j].exist == false) {
+            i = j;
+            break;
+        }
+    }
+
+    if (i == -1)
+        return;
+
+    food[i].pos.x = x;
+    food[i].pos.y = y;
+    food[i].exist = true;
+    foodCount++;
+}
 
 bool HandleEvents(SDL_Window *window, SDL_Event event)
 {
@@ -61,6 +202,8 @@ bool HandleEvents(SDL_Window *window, SDL_Event event)
         case SDL_EVENT_KEY_DOWN:
             if (event.key.repeat)
                 break;
+
+            int *dir = &snake.head->dir;
 
             switch (event.key.key)
             {
@@ -77,7 +220,40 @@ bool HandleEvents(SDL_Window *window, SDL_Event event)
                     wired = !wired;
                     glPolygonMode(GL_FRONT_AND_BACK, wired ? GL_LINE : GL_FILL);
                     break;
+
+                case SDLK_R:
+                    if (dead) {
+                        snakeInit();
+                        dead = false;
+                    }
+                    break;
+
+                case SDLK_W:
+                    if (*dir != 2 && !block_snake_input) {
+                        *dir = 0;
+                        block_snake_input = true;
+                    }
+                    break;
+                case SDLK_D:
+                    if (*dir != 3 && !block_snake_input) {
+                        *dir = 1;
+                        block_snake_input = true;
+                    }
+                    break;
+                case SDLK_S:
+                    if (*dir != 0 && !block_snake_input) {
+                        *dir = 2;
+                        block_snake_input = true;
+                    }
+                    break;
+                case SDLK_A:
+                    if (*dir != 1 && !block_snake_input) {
+                        *dir = 3;
+                        block_snake_input = true;
+                    }
+                    break;
             }
+
             break;
 
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
@@ -92,35 +268,6 @@ bool HandleEvents(SDL_Window *window, SDL_Event event)
 
     return true; // keep running
 }
-
-void snakeTick(Snake *snake) {
-    Snake next_snake = *snake;
-    next_snake.head = &next_snake.part[0];
-    time_t snake_last_tick = time(NULL);
-
-
-    printf("ASDasd\n");
-    for (int i = 0; i < next_snake.length; i++) {
-        if (i == 0) {
-            switch (next_snake.head->dir) {
-                case 0:
-                    next_snake.head->pos.y++;
-                case 1:
-                    next_snake.head->pos.x++;
-                case 2:
-                    next_snake.head->pos.y--;
-                case 3:
-                    next_snake.head->pos.x--;
-                default:
-                    break;
-            }
-            
-        }
-
-    }
-}
-
-
 
 int main() {
 
@@ -165,17 +312,11 @@ int main() {
     // Enable vsync
     SDL_GL_SetSwapInterval(1);
 
+    snakeInit();
 
-    Snake snake;
-    snake.length = 3;
-    for (int i = 0; i < SNAKE_MAX_LENGTH; i++) {
-        snake.part[i].pos = (vec2){0};
-        snake.part[i].dir = -1; // Uninitalized direction
-    };
-    time_t snake_last_tick = time(NULL);
-    snake.head = &snake.part[0];
-    snake.head->dir = 0;
+    spawnApple();
 
+    long long snake_last_tick = current_time_ms();
     while (!WindowShouldClose) {
         StartFrame(window);
         context.rectCount = 0;
@@ -184,8 +325,8 @@ int main() {
         Clear(BACKGROUND_COLOR);
 
         vec2 tileOffset = {
-            BASE_WIDTH/2-(MAP_SIZE.x+2)*TILE_SIZE/2,
-            BASE_HEIGHT/2-(MAP_SIZE.y+2)*TILE_SIZE/2
+            (float)BASE_WIDTH/2-(MAP_SIZE.x+2)*TILE_SIZE/2,
+            (float)BASE_HEIGHT/2-(MAP_SIZE.y+2)*TILE_SIZE/2
 
         };
 
@@ -208,27 +349,57 @@ int main() {
                 DrawRectangle(
                 (vec2){
                     tileOffset.x+(float)x*(float)TILE_SIZE,
-                    tileOffset.y+(float)y*(float)TILE_SIZE},
+                    tileOffset.y+(float)y*(float)TILE_SIZE
+                },
                 (vec2){
                     (float)TILE_SIZE,
-                    (float)TILE_SIZE },
+                    (float)TILE_SIZE
+                },
                 color);
             }
         }
 
         // Snake
-        time_t now = time(NULL);
-        if (now - snake_last_tick > SNAKE_MOVE_DELAY/1000) {
+        long long now = current_time_ms();
+        if (now - snake_last_tick > SNAKE_MOVE_DELAY && !dead) {
             snakeTick(&snake);
+            if (dead) {
+                printf("Dead\n");
+            }
             snake_last_tick = now;
         }
 
         for (int i = 0; i < snake.length; i++) {
             vec4 color = SNAKE_COLOR;
+            color = darken(color, 1.0-0.01*i);
+
+
             DrawRectangle(
                 (vec2){
                     tileOffset.x+snake.part[i].pos.x*(float)TILE_SIZE,
                     tileOffset.y+snake.part[i].pos.y*(float)TILE_SIZE
+                },
+                (vec2){
+                    (float)TILE_SIZE,
+                    (float)TILE_SIZE
+                },
+                color
+            );
+        }
+
+
+        if (foodCount < FOOD_MAX_AMOUNT)
+            spawnApple();
+
+        for (int i = 0; i < FOOD_MAX_AMOUNT; i++) {
+            if (food[i].exist == false)
+                continue;
+            vec4 color = APPLE_COLOR;
+
+            DrawRectangle(
+                (vec2){
+                    tileOffset.x+food[i].pos.x*(float)TILE_SIZE,
+                    tileOffset.y+food[i].pos.y*(float)TILE_SIZE
                 },
                 (vec2){
                     (float)TILE_SIZE,

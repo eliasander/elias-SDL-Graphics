@@ -13,15 +13,6 @@ extern bool WindowShouldClose;
 #define BLUE (vec3){0, 0, 255}
 #define WHITE (vec3){255, 255, 255}
 
-
-
-typedef bool (*EventCallback)(SDL_Window *window, SDL_Event event);
-bool setEventCallback(SDL_Window *window, EventCallback callback);
-
-// 2. Global storage for the callback function pointer
-extern EventCallback g_eventCallback;
-
-
 typedef struct
 {
     float x,y;
@@ -61,6 +52,27 @@ typedef struct
 
 extern OpenGL_Context context;
 
+
+
+// Helper functions
+
+// Value 0.0-1.0, if set to 0.8 then it is darkened to 80% of what the original is.
+vec4 darken(vec4 color, float value);
+
+
+
+
+
+
+typedef bool (*EventCallback)(SDL_Window *window, SDL_Event event);
+bool setEventCallback(SDL_Window *window, EventCallback callback);
+
+// 2. Global storage for the callback function pointer
+extern EventCallback g_eventCallback;
+
+
+
+
 SDL_Window* CreateWindow();
 SDL_GLContext CreateOpenGLContext();
 
@@ -86,6 +98,5 @@ void Clear(vec4 color);
 void EndFrame(SDL_Window* window);
 
 
-#endif // ELIAS_SDL_GRAPHICS_LIBRARY_H
-
 void check_scale(float height, float width, float base_width, float base_height);
+#endif // ELIAS_SDL_GRAPHICS_LIBRARY_H
