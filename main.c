@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <time.h>
 
 #include <glad/glad.h>
 #include <SDL3/SDL.h>
@@ -19,6 +21,29 @@
 #define BACKGROUND_COLOR (vec4){73, 154, 213, 1.0}
 #define SNAKE_COLOR (vec4){27, 118, 255, 1.0};
 #define APPLE_COLOR (vec4){217, 0, 0, 1.0};
+
+#define SNAKE_MAX_LENGTH 128
+#define SNAKE_MOVE_DELAY 150 // ms
+
+typedef struct {
+    // Position on board, gos from -MAP_SIZE/2 to MAP_SIZE/2
+    vec2 pos;
+
+    // Direction
+    // 0 - Up
+    // 1 - Right
+    // 2 - Down
+    // 3 - Left
+    int dir;
+} SnakePart;
+
+typedef struct {
+    int length;
+    SnakePart part[SNAKE_MAX_LENGTH];
+    SnakePart *head;
+    
+} Snake;
+
 
 
 
@@ -68,6 +93,35 @@ bool HandleEvents(SDL_Window *window, SDL_Event event)
     return true; // keep running
 }
 
+void snakeTick(Snake *snake) {
+    Snake next_snake = *snake;
+    next_snake.head = &next_snake.part[0];
+    time_t snake_last_tick = time(NULL);
+
+
+    printf("ASDasd\n");
+    for (int i = 0; i < next_snake.length; i++) {
+        if (i == 0) {
+            switch (next_snake.head->dir) {
+                case 0:
+                    next_snake.head->pos.y++;
+                case 1:
+                    next_snake.head->pos.x++;
+                case 2:
+                    next_snake.head->pos.y--;
+                case 3:
+                    next_snake.head->pos.x--;
+                default:
+                    break;
+            }
+            
+        }
+
+    }
+}
+
+
+
 int main() {
 
     SDL_Window* window = CreateWindow();
@@ -112,6 +166,15 @@ int main() {
     SDL_GL_SetSwapInterval(1);
 
 
+    Snake snake;
+    snake.length = 3;
+    for (int i = 0; i < SNAKE_MAX_LENGTH; i++) {
+        snake.part[i].pos = (vec2){0};
+        snake.part[i].dir = -1; // Uninitalized direction
+    };
+    time_t snake_last_tick = time(NULL);
+    snake.head = &snake.part[0];
+    snake.head->dir = 0;
 
     while (!WindowShouldClose) {
         StartFrame(window);
@@ -151,6 +214,28 @@ int main() {
                     (float)TILE_SIZE },
                 color);
             }
+        }
+
+        // Snake
+        time_t now = time(NULL);
+        if (now - snake_last_tick > SNAKE_MOVE_DELAY/1000) {
+            snakeTick(&snake);
+            snake_last_tick = now;
+        }
+
+        for (int i = 0; i < snake.length; i++) {
+            vec4 color = SNAKE_COLOR;
+            DrawRectangle(
+                (vec2){
+                    tileOffset.x+snake.part[i].pos.x*(float)TILE_SIZE,
+                    tileOffset.y+snake.part[i].pos.y*(float)TILE_SIZE
+                },
+                (vec2){
+                    (float)TILE_SIZE,
+                    (float)TILE_SIZE
+                },
+                color
+            );
         }
 
         // Bind VAO FIRST
