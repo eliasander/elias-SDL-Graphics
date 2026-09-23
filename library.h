@@ -8,12 +8,10 @@
 extern bool WindowShouldClose;
 
 
-#define RED (vec3){1.0, 0.0, 0.0}
-#define GREEN (vec3){0.0, 1.0, 0.0}
-#define BLUE (vec3){0.0, 0.0, 1.0}
-#define WHITE (vec3){1.0, 1.0, 1.0}
-#define MAPGREEN1 (vec3){0.22, 0.67, 0.35}
-#define MAPGREEN2 (vec3){0.14, 0.53, 0.24}
+#define RED (vec3){255, 0, 0}
+#define GREEN (vec3){0, 255, 0}
+#define BLUE (vec3){0, 0, 255}
+#define WHITE (vec3){255, 255, 255}
 
 
 
@@ -35,14 +33,18 @@ typedef struct
 } vec3;
 
 typedef struct {
+    float x,y,z,w;
+} vec4;
+
+typedef struct {
     vec2 pos;
-    vec3 color;
+    vec4 color;
 } Vertex;
 
 typedef struct {
     vec2 pos;
     vec2 size;
-    vec3 color;
+    vec4 color;
 } RectInstance;
 
 
@@ -76,9 +78,11 @@ int CreateShaderProgram(Shader shaders[], int shaderCount);
 void DeleteShader(Shader shader);
 
 
-void DrawRectangle(vec2 pos, vec2 size, vec3 color);
+void DrawRectangle(vec2 pos, vec2 size, vec4 color);
 
 void StartFrame(SDL_Window* window);
+void Clear(vec4 color);
+
 void EndFrame(SDL_Window* window);
 
 

@@ -7,8 +7,21 @@
 
 #include "library.h"
 
-#define BASE_WIDTH 256
-#define BASE_HEIGHT 144
+#define BASE_WIDTH 1920
+#define BASE_HEIGHT 1080
+
+#define MAP_SIZE (vec2){17,15}
+#define TILE_SIZE 40
+
+#define MAP_BORDER (vec4){124, 119, 62, 1.0}
+#define MAPGREEN1 (vec4){67, 160, 71, 1.0}
+#define MAPGREEN2 (vec4){69, 170, 85, 1.0}
+#define BACKGROUND_COLOR (vec4){73, 154, 213, 1.0}
+#define SNAKE_COLOR (vec4){27, 118, 255, 1.0};
+#define APPLE_COLOR (vec4){217, 0, 0, 1.0};
+
+
+
 
 bool HandleEvents(SDL_Window *window, SDL_Event event)
 {
@@ -95,34 +108,47 @@ int main() {
 
     glBindVertexArray(0); // Unbind
 
+    // Enable vsync
+    SDL_GL_SetSwapInterval(1);
+
+
 
     while (!WindowShouldClose) {
         StartFrame(window);
         context.rectCount = 0;
 
         // Render here
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        Clear(BACKGROUND_COLOR);
 
+        vec2 tileOffset = {
+            BASE_WIDTH/2-(MAP_SIZE.x+2)*TILE_SIZE/2,
+            BASE_HEIGHT/2-(MAP_SIZE.y+2)*TILE_SIZE/2
 
-        int tileSize = 6;
-        for (int y = 0; y < 15; y++)
+        };
+
+        for (int y = -1; y < MAP_SIZE.y+1; y++)
         {
-            for (int x = 0; x < 17; x++)
+            for (int x = -1; x < MAP_SIZE.x+1; x++)
             {
-                vec3 color;
-                if ((x+y) % 2 == 0)
-                    color = MAPGREEN1;
-                else
-                    color = MAPGREEN2;
+                vec4 color;
+                if ((x == -1 || x == MAP_SIZE.x) || (y == -1 || y == MAP_SIZE.y)) {
+                    color = MAP_BORDER;
+                }
+                else {
+                    if ((x+y) % 2 == 0)
+                        color = MAPGREEN1;
+                    else
+                        color = MAPGREEN2;
+                }
+            
 
                 DrawRectangle(
                 (vec2){
-                    30.0f+(float)x*(float)tileSize,
-                    30.0f+(float)y*(float)tileSize},
+                    tileOffset.x+(float)x*(float)TILE_SIZE,
+                    tileOffset.y+(float)y*(float)TILE_SIZE},
                 (vec2){
-                    (float)tileSize,
-                    (float)tileSize },
+                    (float)TILE_SIZE,
+                    (float)TILE_SIZE },
                 color);
             }
         }
@@ -161,7 +187,7 @@ int main() {
 
         glVertexAttribPointer(
             1,                  // location
-            3,                  // vec3
+            4,                  // vec4
             GL_FLOAT,
             GL_FALSE,
             sizeof(Vertex),  // stride

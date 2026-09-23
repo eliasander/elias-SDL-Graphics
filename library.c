@@ -14,6 +14,14 @@ float scale = 1;
 
 OpenGL_Context context = {0};
 
+// Helper functions
+
+void colorConvert(vec4 *color) {
+    color->x/=255;
+    color->y/=255;
+    color->z/=255;
+}
+
 // Function callbacks
 EventCallback g_eventCallback;
 // 3. Setter function returning int (0 = Success, -1 = Error)
@@ -46,6 +54,7 @@ void DrawTriangle(vec2 pos, vec2 size, vec3 color)
         size.x / (float)screenWidth * 2.0f;
     float height =
         size.y / (float)screenHeight * 2.0f;
+
 
     float verticies[] = {
         x,         y,          color.x, color.y, color.z,
@@ -88,7 +97,7 @@ void DrawTriangle(vec2 pos, vec2 size, vec3 color)
     glDrawArrays(GL_TRIANGLES, 0, 3);
 }
 
-void DrawRectangle(vec2 pos, vec2 size, vec3 color)
+void DrawRectangle(vec2 pos, vec2 size, vec4 color)
 {
     if (context.rectCount > 500) return;
 
@@ -102,11 +111,13 @@ void DrawRectangle(vec2 pos, vec2 size, vec3 color)
     float height =
         (size.y*scale) / (float)screenHeight * 2.0f;
 
+    colorConvert(&color);
+
     Vertex verticies[4] = {
-        {x,         y,          color.x, color.y, color.z},
-        {x + width, y,          color.x, color.y, color.z},
-        {x,         y - height, color.x, color.y, color.z},
-        {x + width, y - height, color.x, color.y, color.z}
+        {x,         y,          color.x, color.y, color.z, color.w},
+        {x + width, y,          color.x, color.y, color.z, color.w},
+        {x,         y - height, color.x, color.y, color.z, color.w},
+        {x + width, y - height, color.x, color.y, color.z, color.w}
     };
 
 
@@ -119,7 +130,7 @@ void DrawRectangle(vec2 pos, vec2 size, vec3 color)
         },
         .color =
         {
-            color.x, color.y, color.z
+            color.x, color.y, color.z, color.w
         }
     };
 
@@ -305,6 +316,12 @@ void StartFrame(SDL_Window* window) {
     pollEvents(window);
 
     return;
+}
+
+void Clear(vec4 color) {
+    colorConvert(&color);
+    glClearColor(color.x, color.y, color.z, color.w);
+    glClear(GL_COLOR_BUFFER_BIT);
 }
 
 

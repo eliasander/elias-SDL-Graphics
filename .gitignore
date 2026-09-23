@@ -4,3 +4,4 @@ out/
 CMakeFiles/
 CMakeCache.txt
 compile_commands.json
+flake.lock
