@@ -15,9 +15,10 @@
 #define BASE_HEIGHT 1080
 
 #define MAP_SIZE (vec2){10,9}
-#define TILE_SIZE 40
+#define TILE_SIZE 80
 
-#define MAP_BORDER (vec4){124, 119, 62, 1.0}
+#define MAP_BORDER (vec4){122, 81, 61, 1.0}
+
 #define MAPGREEN1 (vec4){67, 160, 71, 1.0}
 #define MAPGREEN2 (vec4){69, 170, 85, 1.0}
 #define BACKGROUND_COLOR (vec4){73, 154, 213, 1.0}
@@ -31,7 +32,7 @@
 #define SNAKE_EFFECT_DARKEN true
 
 #define FOOD_MAX_AMOUNT 5
-#define SUBGAME_MAX_DEPTH 3
+#define SUBGAME_MAX_DEPTH 1
 
 typedef struct {
     // Position on board, gos from -MAP_SIZE/2 to MAP_SIZE/2
@@ -56,7 +57,10 @@ typedef struct {
     bool exist;
 } Food;
 
+
+
 typedef struct Subgame {
+    int id;
     // The current depth
     int depth;
     // Pointers to the next depth of subgames
@@ -65,6 +69,10 @@ typedef struct Subgame {
     int type[FOOD_MAX_AMOUNT];
     bool exist[FOOD_MAX_AMOUNT];
     vec2 foodPos[FOOD_MAX_AMOUNT];
+    int foodCount;
+    vec2 pos;
+
+    struct Subgame *parent;
     struct Subgame *subgame;
 
     // Snake for the subgame
@@ -73,11 +81,12 @@ typedef struct Subgame {
 
 Subgame mainGame;
 Subgame *currentGame;
-int foodCount;
+int subGameCount;
 bool dead = false;
 bool block_snake_input = false;
 
 Subgame CreateSubgame(int depth);
+void DeleteSubgame(Subgame *game);
 
 
 long long current_time_ms(void) {
@@ -119,7 +128,7 @@ void snakeTick(Snake *snake) {
     Snake next_snake = *snake;
     next_snake.head = &next_snake.part[0];
 
-    time_t snake_last_tick = time(NULL);
+    long long snake_last_tick = current_time_ms();
 
     for (int i = 0; i < next_snake.length; i++) {
         if (i > 0 && i < 128) {
@@ -152,24 +161,46 @@ void snakeTick(Snake *snake) {
                     if (currentGame->depth == SUBGAME_MAX_DEPTH) {
                         next_snake.part[next_snake.length] = snake->part[snake->length];
                         currentGame->exist[j] = false;
-                        foodCount--;
+                        currentGame->foodCount--;
                         next_snake.length++;
                     }
                     else {
                         Subgame game = CreateSubgame(currentGame->depth+1);
+                        game.pos = currentGame->foodPos[j];
+                        game.parent = currentGame;
                         currentGame->subgame[j] = game;
                         currentGame = &currentGame->subgame[j];
                     }
                 }
             }
 
+            bool reset_death = false;
 
             for (int j = 1; j < next_snake.length; j++) {
                 if (next_snake.head->pos.x == next_snake.part[j].pos.x && next_snake.head->pos.y == next_snake.part[j].pos.y)
                     dead = true;
                 else if (next_snake.head->pos.x == -1 || next_snake.head->pos.x == MAP_SIZE.x || next_snake.head->pos.y == -1 || next_snake.head->pos.y == MAP_SIZE.y )
                     dead = true;
+
+                
+                if (dead && currentGame != &mainGame) {
+                    Subgame *parent = currentGame->parent;
+
+                    DeleteSubgame(currentGame);
+                    
+                    currentGame = parent;
+                    currentGame->snake.length--;
+
+                    if (mainGame.snake.length > 0)
+                        reset_death = true;
+
+
+                }
             }
+
+            if (reset_death)
+                dead = false;
+            
         }
 
     }
@@ -204,20 +235,10 @@ void spawnFood() {
 
     int i = -1;
     for (int j = 0; j < FOOD_MAX_AMOUNT; j++) {
-        if (depth < SUBGAME_MAX_DEPTH) {
-            if (currentGame->exist[j] == false) {
-                i = j;
-                currentGame->exist[j] = true;
-                break;
-            }
-        }
-        else if (depth == SUBGAME_MAX_DEPTH) {
-            if (currentGame->exist[j] == false) {
-                i = j;
-                currentGame->exist[j] = true;
-                break;
-            }
-
+        if (currentGame->exist[j] == false) {
+            i = j;
+            currentGame->exist[j] = true;
+            break;
         }
     }
 
@@ -226,12 +247,13 @@ void spawnFood() {
 
     currentGame->foodPos[i].x = x;
     currentGame->foodPos[i].y = y;
-    foodCount++;
+    currentGame->foodCount++;
 }
 
 Subgame CreateSubgame(int depth){
     Subgame game;
     game.depth = depth;
+    game.id = subGameCount++;
     if (game.depth < SUBGAME_MAX_DEPTH) {
         game.subgame = malloc(sizeof *game.subgame * FOOD_MAX_AMOUNT);
     } 
@@ -244,6 +266,34 @@ Subgame CreateSubgame(int depth){
     snakeInit(&game.snake);
 
     return game;
+}
+
+void DeleteSubgame(Subgame *game) {
+    Subgame *parent = game->parent;
+    int x,y;
+    x = game->pos.x;
+    y = game->pos.y;
+
+    bool found;
+    int i = -1;
+    do {
+        i++;
+        if (parent->foodPos[i].x == x &&
+            parent->foodPos[i].y == y) {
+
+            found = true;
+        }
+    } while (!found);
+
+    if (i == -1) {
+        printf("Something went wrong, couldn't find subgame for deletion\n");
+        return;
+    }
+
+    parent->subgame[i] = (Subgame){0};
+    parent->exist[i] = false;
+    currentGame->foodCount--;
+    
 }
 
 bool HandleEvents(SDL_Window *window, SDL_Event event)
@@ -281,9 +331,9 @@ bool HandleEvents(SDL_Window *window, SDL_Event event)
 
                 case SDLK_R:
                     if (dead) {
-
-                        //snakeInit();
-                        //dead = false;
+                        snakeInit(&mainGame.snake);
+                        currentGame = &mainGame;
+                        dead = false;
                     }
                     break;
 
@@ -395,8 +445,8 @@ int main() {
         Clear(BACKGROUND_COLOR);
 
         vec2 tileOffset = {
-            (float)BASE_WIDTH/2-(MAP_SIZE.x+2)*TILE_SIZE/2,
-            (float)BASE_HEIGHT/2-(MAP_SIZE.y+2)*TILE_SIZE/2
+            (float)BASE_WIDTH/2-(MAP_SIZE.x)*TILE_SIZE/2,
+            (float)BASE_HEIGHT/2-(MAP_SIZE.y)*TILE_SIZE/2
 
         };
 
@@ -459,7 +509,7 @@ int main() {
         }
 
 
-        if (foodCount < FOOD_MAX_AMOUNT)
+        if (currentGame->foodCount < FOOD_MAX_AMOUNT)
             spawnFood();
 
         for (int i = 0; i < FOOD_MAX_AMOUNT; i++) {
@@ -468,9 +518,7 @@ int main() {
             vec4 color = TEMP_COLOR;
             if (currentGame->depth == SUBGAME_MAX_DEPTH) {
                 color = APPLE_COLOR;
-            }
-
-            DrawRectangle(
+                DrawRectangle(
                 (vec2){
                     tileOffset.x+currentGame->foodPos[i].x*(float)TILE_SIZE,
                     tileOffset.y+currentGame->foodPos[i].y*(float)TILE_SIZE
@@ -480,7 +528,32 @@ int main() {
                     (float)TILE_SIZE
                 },
                 color
-            );
+                );
+            } 
+            else {
+                for (int y = 0; y < 10; y++)
+                {
+                    for (int x = 0; x < 10; x++)
+                    {
+                        vec4 color;
+                        if ((x+y) % 2 == 0)
+                            color = MAPGREEN1;
+                        else
+                            color = MAPGREEN2;
+
+                        DrawRectangle(
+                        (vec2){
+                            tileOffset.x+currentGame->foodPos[i].x*(float)TILE_SIZE+(TILE_SIZE/10)*x,
+                            tileOffset.y+currentGame->foodPos[i].y*(float)TILE_SIZE+(TILE_SIZE/10)*y
+                        },
+                        (vec2){
+                            (float)TILE_SIZE/10,
+                            (float)TILE_SIZE/10
+                        },
+                        color);
+                    }
+                }
+            }
         }
 
         // Bind VAO FIRST
