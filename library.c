@@ -206,7 +206,7 @@ static SDL_Window *window = NULL;
 static SDL_GLContext contextGL;
 int flagCount = 0;
 
-void SetFlag(unsigned long long flag) {
+void SetWindowFlag(unsigned long long flag) {
     context.flags[flagCount++] = flag;
 }
 

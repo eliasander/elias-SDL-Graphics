@@ -22,13 +22,16 @@
 #define MAPGREEN2 (vec4){69, 170, 85, 1.0}
 #define BACKGROUND_COLOR (vec4){73, 154, 213, 1.0}
 #define SNAKE_COLOR (vec4){27, 118, 255, 1.0};
+#define TEMP_COLOR (vec4){50, 50, 50, 1.0};
 #define APPLE_COLOR (vec4){170, 50, 50, 1.0};
 
 #define SNAKE_START_LENGTH 3
 #define SNAKE_MAX_LENGTH 128
 #define SNAKE_MOVE_DELAY 250 // ms
+#define SNAKE_EFFECT_DARKEN true
 
 #define FOOD_MAX_AMOUNT 5
+#define SUBGAME_MAX_DEPTH 3
 
 typedef struct {
     // Position on board, gos from -MAP_SIZE/2 to MAP_SIZE/2
@@ -51,14 +54,30 @@ typedef struct {
 
 typedef struct {
     bool exist;
-    vec2 pos;
 } Food;
 
-Snake snake;
-Food food[FOOD_MAX_AMOUNT];
+typedef struct Subgame {
+    // The current depth
+    int depth;
+    // Pointers to the next depth of subgames
+
+    // 0 = apple, 1 = subgame
+    int type[FOOD_MAX_AMOUNT];
+    bool exist[FOOD_MAX_AMOUNT];
+    vec2 foodPos[FOOD_MAX_AMOUNT];
+    struct Subgame *subgame;
+
+    // Snake for the subgame
+    Snake snake;
+} Subgame;
+
+Subgame mainGame;
+Subgame *currentGame;
 int foodCount;
 bool dead = false;
 bool block_snake_input = false;
+
+Subgame CreateSubgame(int depth);
 
 
 long long current_time_ms(void) {
@@ -83,22 +102,23 @@ long long current_time_ms(void) {
 }
 
 
-void snakeInit() {
+void snakeInit(Snake *snake) {
     srand((unsigned)time(NULL));
 
-    snake.length = SNAKE_START_LENGTH;
+    snake->length = SNAKE_START_LENGTH;
     for (int i = 0; i < SNAKE_MAX_LENGTH; i++) {
-        snake.part[i].pos = (vec2){roundf(MAP_SIZE.x/2), roundf(MAP_SIZE.y/2)};
-        snake.part[i].dir = -1; // Uninitalized direction
+        snake->part[i].pos = (vec2){roundf(MAP_SIZE.x/2), roundf(MAP_SIZE.y/2)};
+        snake->part[i].dir = -1; // Uninitalized direction
     };
-    snake.head = &snake.part[0];
-    snake.head->dir = 0;
+    snake->head = &snake->part[0];
+    snake->head->dir = 1;
 
 }
 
 void snakeTick(Snake *snake) {
     Snake next_snake = *snake;
     next_snake.head = &next_snake.part[0];
+
     time_t snake_last_tick = time(NULL);
 
     for (int i = 0; i < next_snake.length; i++) {
@@ -124,14 +144,22 @@ void snakeTick(Snake *snake) {
             }
 
             for (int j = 0; j < FOOD_MAX_AMOUNT; j++) {
-                if (food[j].exist == false)
+                if (currentGame->exist[j] == false)
                     continue;
 
-                if (next_snake.head->pos.x == food[j].pos.x && next_snake.head->pos.y == food[j].pos.y) {
-                    next_snake.length++;
-                    next_snake.part[next_snake.length] = snake->part[snake->length];
-                    food[j].exist = false;
-                    foodCount--;
+                if (next_snake.head->pos.x == currentGame->foodPos[j].x && 
+                    next_snake.head->pos.y == currentGame->foodPos[j].y) {
+                    if (currentGame->depth == SUBGAME_MAX_DEPTH) {
+                        next_snake.part[next_snake.length] = snake->part[snake->length];
+                        currentGame->exist[j] = false;
+                        foodCount--;
+                        next_snake.length++;
+                    }
+                    else {
+                        Subgame game = CreateSubgame(currentGame->depth+1);
+                        currentGame->subgame[j] = game;
+                        currentGame = &currentGame->subgame[j];
+                    }
                 }
             }
 
@@ -149,14 +177,16 @@ void snakeTick(Snake *snake) {
     block_snake_input = false;
     if (!dead) {
         memcpy(snake->part, next_snake.part, sizeof(SnakePart)*SNAKE_MAX_LENGTH);
+        snake->head = &snake->part[0];
         snake->length = next_snake.length;
     }
     return;
 }
 
-void spawnApple() {
+void spawnFood() {
     int x;
     int y;
+    int depth = currentGame->depth;
 
     bool cell_free;
     do {
@@ -164,8 +194,8 @@ void spawnApple() {
         y = rand() % (int)MAP_SIZE.y;
 
         cell_free = true;
-        for (int i = 0; i < snake.length; i++) {
-            if (x == snake.part[i].pos.x && y == snake.part[i].pos.y) {
+        for (int i = 0; i < mainGame.snake.length; i++) {
+            if (x == mainGame.snake.part[i].pos.x && y == currentGame->snake.part[i].pos.y) {
                 cell_free = false;
                 break;
             }
@@ -174,19 +204,46 @@ void spawnApple() {
 
     int i = -1;
     for (int j = 0; j < FOOD_MAX_AMOUNT; j++) {
-        if (food[j].exist == false) {
-            i = j;
-            break;
+        if (depth < SUBGAME_MAX_DEPTH) {
+            if (currentGame->exist[j] == false) {
+                i = j;
+                currentGame->exist[j] = true;
+                break;
+            }
+        }
+        else if (depth == SUBGAME_MAX_DEPTH) {
+            if (currentGame->exist[j] == false) {
+                i = j;
+                currentGame->exist[j] = true;
+                break;
+            }
+
         }
     }
 
     if (i == -1)
         return;
 
-    food[i].pos.x = x;
-    food[i].pos.y = y;
-    food[i].exist = true;
+    currentGame->foodPos[i].x = x;
+    currentGame->foodPos[i].y = y;
     foodCount++;
+}
+
+Subgame CreateSubgame(int depth){
+    Subgame game;
+    game.depth = depth;
+    if (game.depth < SUBGAME_MAX_DEPTH) {
+        game.subgame = malloc(sizeof *game.subgame * FOOD_MAX_AMOUNT);
+    } 
+    else {
+        for (int i = 0; i < FOOD_MAX_AMOUNT; i++) {
+            game.exist[i] = false;
+        }
+    }
+
+    snakeInit(&game.snake);
+
+    return game;
 }
 
 bool HandleEvents(SDL_Window *window, SDL_Event event)
@@ -204,7 +261,7 @@ bool HandleEvents(SDL_Window *window, SDL_Event event)
             if (event.key.repeat)
                 break;
 
-            int *dir = &snake.head->dir;
+            int *dir = &currentGame->snake.head->dir;
 
             switch (event.key.key)
             {
@@ -224,8 +281,9 @@ bool HandleEvents(SDL_Window *window, SDL_Event event)
 
                 case SDLK_R:
                     if (dead) {
-                        snakeInit();
-                        dead = false;
+
+                        //snakeInit();
+                        //dead = false;
                     }
                     break;
 
@@ -274,7 +332,7 @@ int main() {
     SDL_Window* window = CreateWindow();
     SDL_GLContext contextGL = CreateOpenGLContext();
 
-    SetFlag(EOS_WINDOW_LETTERBOXING);
+    SetWindowFlag(EOS_WINDOW_LETTERBOXING);
 
     
 
@@ -320,9 +378,13 @@ int main() {
     // Enable vsync
     SDL_GL_SetSwapInterval(1);
 
-    snakeInit();
+    mainGame = CreateSubgame(0);
+    currentGame = &mainGame;    
 
-    spawnApple();
+
+
+
+    spawnFood();
 
     long long snake_last_tick = current_time_ms();
     while (!WindowShouldClose) {
@@ -370,22 +432,23 @@ int main() {
         // Snake
         long long now = current_time_ms();
         if (now - snake_last_tick > SNAKE_MOVE_DELAY && !dead) {
-            snakeTick(&snake);
+            snakeTick(&currentGame->snake);
             if (dead) {
                 printf("Dead\n");
             }
             snake_last_tick = now;
         }
 
-        for (int i = 0; i < snake.length; i++) {
+        for (int i = 0; i < currentGame->snake.length; i++) {
             vec4 color = SNAKE_COLOR;
-            color = darken(color, 1.0-0.01*i);
+            if (SNAKE_EFFECT_DARKEN)
+                color = darken(color, 1.0-0.01*i);
 
 
             DrawRectangle(
                 (vec2){
-                    tileOffset.x+snake.part[i].pos.x*(float)TILE_SIZE,
-                    tileOffset.y+snake.part[i].pos.y*(float)TILE_SIZE
+                    tileOffset.x+currentGame->snake.part[i].pos.x*(float)TILE_SIZE,
+                    tileOffset.y+currentGame->snake.part[i].pos.y*(float)TILE_SIZE
                 },
                 (vec2){
                     (float)TILE_SIZE,
@@ -397,17 +460,20 @@ int main() {
 
 
         if (foodCount < FOOD_MAX_AMOUNT)
-            spawnApple();
+            spawnFood();
 
         for (int i = 0; i < FOOD_MAX_AMOUNT; i++) {
-            if (food[i].exist == false)
+            if (currentGame->exist[i] == false)
                 continue;
-            vec4 color = APPLE_COLOR;
+            vec4 color = TEMP_COLOR;
+            if (currentGame->depth == SUBGAME_MAX_DEPTH) {
+                color = APPLE_COLOR;
+            }
 
             DrawRectangle(
                 (vec2){
-                    tileOffset.x+food[i].pos.x*(float)TILE_SIZE,
-                    tileOffset.y+food[i].pos.y*(float)TILE_SIZE
+                    tileOffset.x+currentGame->foodPos[i].x*(float)TILE_SIZE,
+                    tileOffset.y+currentGame->foodPos[i].y*(float)TILE_SIZE
                 },
                 (vec2){
                     (float)TILE_SIZE,

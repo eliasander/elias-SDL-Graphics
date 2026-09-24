@@ -66,7 +66,7 @@ extern OpenGL_Context context;
 
 // Value 0.0-1.0, if set to 0.8 then it is darkened to 80% of what the original is.
 vec4 darken(vec4 color, float value);
-void SetFlag(unsigned long long flag);
+void SetWindowFlag(unsigned long long flag);
 
 
 
