@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.31.6)
-project(GLFWGame C)
+project(SnakeSquared C)
 
 set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED True)
 
 include(FetchContent)
 
@@ -17,36 +18,38 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(sdl)
 
-
-# --- Client ---
-file(GLOB SOURCES CONFIGURE_DEPENDS
+# --- eos library ---
+file(GLOB EOS_SOURCES CONFIGURE_DEPENDS
         src/*.c
-        main.c
         glad/src/*.c
-        glad/include/*.h
 )
 
-add_executable(GLFWGame ${SOURCES}
-        library.c)
-target_compile_definitions(GLFWGame PRIVATE
-        $<$<CONFIG:Debug>:DEBUG>
+add_library(eos STATIC ${EOS_SOURCES})
+
+target_include_directories(eos PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/glad/include
 )
 
-# --- Link libraries ---
-target_include_directories(GLFWGame PRIVATE
-        src
-        include
-        glad/src
-        glad/include
-)
-target_link_libraries(GLFWGame PRIVATE
+target_link_libraries(eos PUBLIC
         SDL3::SDL3-static
 )
 
-add_custom_command(TARGET GLFWGame POST_BUILD
+# --- Client executable ---
+add_executable(SnakeSquared main.c)
+
+target_compile_definitions(SnakeSquared PRIVATE
+        $<$<CONFIG:Debug>:DEBUG>
+)
+
+target_link_libraries(SnakeSquared PRIVATE
+        eos
+)
+
+add_custom_command(TARGET SnakeSquared POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E rm -rf
-            $<TARGET_FILE_DIR:GLFWGame>/shaders
+            $<TARGET_FILE_DIR:SnakeSquared>/shaders
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_SOURCE_DIR}/shaders
-            $<TARGET_FILE_DIR:GLFWGame>/shaders
+            $<TARGET_FILE_DIR:SnakeSquared>/shaders
 )

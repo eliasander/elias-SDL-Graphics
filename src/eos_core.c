@@ -1,4 +1,4 @@
-#include "library.h"
+#include <eos_core.h>
 
 #include <math.h>
 #include <stdbool.h>
@@ -22,16 +22,20 @@ OpenGL_Context context = {0};
 
 // Helper functions
 
-void colorConvert(vec4 *color) {
-    color->x/=255;
-    color->y/=255;
-    color->z/=255;
+vec4 colorConvert(Color color) {
+    vec4 convertedColor = {
+        (float)color.r/255,
+        (float)color.g/255,
+        (float)color.b/255,
+        color.a
+    };
+    return convertedColor;
 }
 
-vec4 darken(vec4 color, float value) {
-    color.x*=value;
-    color.y*=value;
-    color.z*=value;
+Color darken(Color color, float value) {
+    color.r*=value;
+    color.g*=value;
+    color.b*=value;
 
     return color;
 }
@@ -106,7 +110,7 @@ void DrawTriangle(vec2 pos, vec2 size, vec3 color)
     glDrawArrays(GL_TRIANGLES, 0, 3);
 }
 
-void DrawRectangle(vec2 pos, vec2 size, vec4 color)
+void DrawRectangle(vec2 pos, vec2 size, Color color)
 {
     if (context.rectCount > 1024) return;
 
@@ -120,13 +124,13 @@ void DrawRectangle(vec2 pos, vec2 size, vec4 color)
     float height =
         (size.y*scale) / (float)screenHeight * 2.0f;
 
-    colorConvert(&color);
+    vec4 convertedColor = colorConvert(color);
 
     Vertex verticies[4] = {
-        {x,         y,          color.x, color.y, color.z, color.w},
-        {x + width, y,          color.x, color.y, color.z, color.w},
-        {x,         y - height, color.x, color.y, color.z, color.w},
-        {x + width, y - height, color.x, color.y, color.z, color.w}
+        {x,         y,          convertedColor.x, convertedColor.y, convertedColor.z, convertedColor.w},
+        {x + width, y,          convertedColor.x, convertedColor.y, convertedColor.z, convertedColor.w},
+        {x,         y - height, convertedColor.x, convertedColor.y, convertedColor.z, convertedColor.w},
+        {x + width, y - height, convertedColor.x, convertedColor.y, convertedColor.z, convertedColor.w}
     };
 
 
@@ -139,7 +143,7 @@ void DrawRectangle(vec2 pos, vec2 size, vec4 color)
         },
         .color =
         {
-            color.x, color.y, color.z, color.w
+            color.r, color.g, color.b, color.a
         }
     };
 
@@ -212,7 +216,7 @@ void SetWindowFlag(unsigned long long flag) {
 
 bool HasFlag(unsigned long long flag) {
     for (int i = 0; i < flagCount; i++) {
-        if (context.flags[i] & flag)
+        if (context.flags[i] == flag)
             return true;
     }
     return false;
@@ -351,19 +355,22 @@ void StartFrame(SDL_Window* window) {
     return;
 }
 
-void Clear(vec4 color) {
+void Clear(Color color) {
+    vec4 convertedColor = colorConvert(color);
+    
     if (HasFlag(EOS_WINDOW_LETTERBOXING)) {
         glDisable(GL_SCISSOR_TEST);
         glViewport(0, 0, screenWidth, screenHeight);
-        glClearColor(0, 0, 0, 1);
+        glClearColor(0,0,0,1);
+        if (HasFlag(EOS_WINDOW_LETTERBOXING_COLOR_CLEAR))
+            glClearColor(convertedColor.x, convertedColor.y, convertedColor.z, convertedColor.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
         glViewport(v.x, v.y, v.w, v.h);
         glEnable(GL_SCISSOR_TEST);
         glScissor(v.x, v.y, v.w, v.h);
     }
-    colorConvert(&color);
-    glClearColor(color.x, color.y, color.z, color.w);
+    glClearColor(convertedColor.x, convertedColor.y, convertedColor.z, convertedColor.w);
     glClear(GL_COLOR_BUFFER_BIT);
 }
 

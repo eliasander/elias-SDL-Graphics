@@ -14,7 +14,18 @@ extern bool WindowShouldClose;
 
 // FLAGS
 
-#define EOS_WINDOW_LETTERBOXING (1ULL << 0)
+enum {
+    EOS_WINDOW_LETTERBOXING,
+    EOS_WINDOW_LETTERBOXING_COLOR_CLEAR,
+
+};
+
+#define byte uint8_t
+
+typedef struct {
+    byte r,g,b;
+    float a;
+} Color;
 
 typedef struct
 {
@@ -65,7 +76,7 @@ extern OpenGL_Context context;
 // Helper functions
 
 // Value 0.0-1.0, if set to 0.8 then it is darkened to 80% of what the original is.
-vec4 darken(vec4 color, float value);
+Color darken(Color color, float value);
 void SetWindowFlag(unsigned long long flag);
 
 
@@ -99,10 +110,10 @@ int CreateShaderProgram(Shader shaders[], int shaderCount);
 void DeleteShader(Shader shader);
 
 
-void DrawRectangle(vec2 pos, vec2 size, vec4 color);
+void DrawRectangle(vec2 pos, vec2 size, Color color);
 
 void StartFrame(SDL_Window* window);
-void Clear(vec4 color);
+void Clear(Color color);
 
 void EndFrame(SDL_Window* window);
 

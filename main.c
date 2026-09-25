@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -9,7 +10,7 @@
 #include <glad/glad.h>
 #include <SDL3/SDL.h>
 
-#include "library.h"
+#include <eos_core.h>
 
 #define BASE_WIDTH 1920
 #define BASE_HEIGHT 1080
@@ -17,14 +18,13 @@
 #define MAP_SIZE (vec2){10,9}
 #define TILE_SIZE 80
 
-#define MAP_BORDER (vec4){122, 81, 61, 1.0}
+#define MAP_BORDER (Color){122, 81, 61, 1.0}
 
-#define MAPGREEN1 (vec4){67, 160, 71, 1.0}
-#define MAPGREEN2 (vec4){69, 170, 85, 1.0}
-#define BACKGROUND_COLOR (vec4){73, 154, 213, 1.0}
-#define SNAKE_COLOR (vec4){27, 118, 255, 1.0};
-#define TEMP_COLOR (vec4){50, 50, 50, 1.0};
-#define APPLE_COLOR (vec4){170, 50, 50, 1.0};
+#define MAPGREEN1 (Color){67, 160, 71, 1.0}
+#define MAPGREEN2 (Color){69, 170, 85, 1.0}
+#define BACKGROUND_COLOR (Color){73, 154, 213, 1.0}
+#define SNAKE_COLOR (Color){27, 118, 255, 1.0};
+#define APPLE_COLOR (Color){170, 50, 50, 1.0};
 
 #define SNAKE_START_LENGTH 3
 #define SNAKE_MAX_LENGTH 128
@@ -32,7 +32,8 @@
 #define SNAKE_EFFECT_DARKEN true
 
 #define FOOD_MAX_AMOUNT 5
-#define SUBGAME_MAX_DEPTH 1
+#define SUBGAME_MAX_DEPTH 3
+
 
 typedef struct {
     // Position on board, gos from -MAP_SIZE/2 to MAP_SIZE/2
@@ -59,8 +60,8 @@ typedef struct {
 
 
 
+
 typedef struct Subgame {
-    int id;
     // The current depth
     int depth;
     // Pointers to the next depth of subgames
@@ -84,6 +85,7 @@ Subgame *currentGame;
 int subGameCount;
 bool dead = false;
 bool block_snake_input = false;
+bool exit_current_subgame = false;
 
 Subgame CreateSubgame(int depth);
 void DeleteSubgame(Subgame *game);
@@ -112,7 +114,7 @@ long long current_time_ms(void) {
 
 
 void snakeInit(Snake *snake) {
-    srand((unsigned)time(NULL));
+    srand((unsigned)time(NULL)*10000);
 
     snake->length = SNAKE_START_LENGTH;
     for (int i = 0; i < SNAKE_MAX_LENGTH; i++) {
@@ -177,32 +179,20 @@ void snakeTick(Snake *snake) {
             bool reset_death = false;
 
             for (int j = 1; j < next_snake.length; j++) {
-                if (next_snake.head->pos.x == next_snake.part[j].pos.x && next_snake.head->pos.y == next_snake.part[j].pos.y)
-                    dead = true;
-                else if (next_snake.head->pos.x == -1 || next_snake.head->pos.x == MAP_SIZE.x || next_snake.head->pos.y == -1 || next_snake.head->pos.y == MAP_SIZE.y )
-                    dead = true;
-
-                
-                if (dead && currentGame != &mainGame) {
-                    Subgame *parent = currentGame->parent;
-
-                    DeleteSubgame(currentGame);
-                    
-                    currentGame = parent;
-                    currentGame->snake.length--;
-
-                    if (mainGame.snake.length > 0)
-                        reset_death = true;
-
-
+                if (next_snake.head->pos.x == next_snake.part[j].pos.x && next_snake.head->pos.y == next_snake.part[j].pos.y) {
+                    if (currentGame->depth != 0)
+                        exit_current_subgame = true;
+                    else
+                        dead = true;
+                }
+                else if (next_snake.head->pos.x == -1 || next_snake.head->pos.x == MAP_SIZE.x || next_snake.head->pos.y == -1 || next_snake.head->pos.y == MAP_SIZE.y ) {
+                    if (currentGame->depth != 0)
+                        exit_current_subgame = true;
+                    else
+                        dead = true;
                 }
             }
-
-            if (reset_death)
-                dead = false;
-            
         }
-
     }
     
     block_snake_input = false;
@@ -225,13 +215,27 @@ void spawnFood() {
         y = rand() % (int)MAP_SIZE.y;
 
         cell_free = true;
-        for (int i = 0; i < mainGame.snake.length; i++) {
-            if (x == mainGame.snake.part[i].pos.x && y == currentGame->snake.part[i].pos.y) {
+        for (int i = 0; i < currentGame->snake.length; i++) {
+            if (x == currentGame->snake.part[i].pos.x && y == currentGame->snake.part[i].pos.y) {
                 cell_free = false;
                 break;
             }
         }
+        for (int i = 0; i < currentGame->foodCount; i++)  {
+            if (currentGame->exist[i]) {
+                if (x == currentGame->foodPos[i].x && y == currentGame->foodPos[i].y) {
+                    cell_free = false;
+                    break;
+                }
+            }
+        }
+        
+        if(cell_free == false)
+            break;
     } while (!cell_free);
+
+    if (cell_free == false)
+        return;
 
     int i = -1;
     for (int j = 0; j < FOOD_MAX_AMOUNT; j++) {
@@ -253,7 +257,7 @@ void spawnFood() {
 Subgame CreateSubgame(int depth){
     Subgame game;
     game.depth = depth;
-    game.id = subGameCount++;
+    game.foodCount = 0;
     if (game.depth < SUBGAME_MAX_DEPTH) {
         game.subgame = malloc(sizeof *game.subgame * FOOD_MAX_AMOUNT);
     } 
@@ -383,8 +387,7 @@ int main() {
     SDL_GLContext contextGL = CreateOpenGLContext();
 
     SetWindowFlag(EOS_WINDOW_LETTERBOXING);
-
-    
+    SetWindowFlag(EOS_WINDOW_LETTERBOXING_COLOR_CLEAR);
 
     int w,h;
     SDL_GetWindowSizeInPixels(window, &w, &h);
@@ -454,7 +457,7 @@ int main() {
         {
             for (int x = -1; x < MAP_SIZE.x+1; x++)
             {
-                vec4 color;
+                Color color;
                 if ((x == -1 || x == MAP_SIZE.x) || (y == -1 || y == MAP_SIZE.y)) {
                     color = MAP_BORDER;
                 }
@@ -490,7 +493,7 @@ int main() {
         }
 
         for (int i = 0; i < currentGame->snake.length; i++) {
-            vec4 color = SNAKE_COLOR;
+            Color color = SNAKE_COLOR;
             if (SNAKE_EFFECT_DARKEN)
                 color = darken(color, 1.0-0.01*i);
 
@@ -515,13 +518,13 @@ int main() {
         for (int i = 0; i < FOOD_MAX_AMOUNT; i++) {
             if (currentGame->exist[i] == false)
                 continue;
-            vec4 color = TEMP_COLOR;
+            Color color;
             if (currentGame->depth == SUBGAME_MAX_DEPTH) {
                 color = APPLE_COLOR;
                 DrawRectangle(
                 (vec2){
-                    tileOffset.x+currentGame->foodPos[i].x*(float)TILE_SIZE,
-                    tileOffset.y+currentGame->foodPos[i].y*(float)TILE_SIZE
+                    floorf(tileOffset.x+currentGame->foodPos[i].x*(float)TILE_SIZE),
+                    floorf(tileOffset.y+currentGame->foodPos[i].y*(float)TILE_SIZE)
                 },
                 (vec2){
                     (float)TILE_SIZE,
@@ -531,29 +534,46 @@ int main() {
                 );
             } 
             else {
-                for (int y = 0; y < 10; y++)
+                #define SUBGAME_VISUAL_SIZE 6
+                for (int y = 0; y < SUBGAME_VISUAL_SIZE; y++)
                 {
-                    for (int x = 0; x < 10; x++)
+                    for (int x = 0; x < SUBGAME_VISUAL_SIZE; x++)
                     {
-                        vec4 color;
+                        Color color;
                         if ((x+y) % 2 == 0)
                             color = MAPGREEN1;
                         else
                             color = MAPGREEN2;
 
+
+                        color = darken(color, 0.85);
+
                         DrawRectangle(
                         (vec2){
-                            tileOffset.x+currentGame->foodPos[i].x*(float)TILE_SIZE+(TILE_SIZE/10)*x,
-                            tileOffset.y+currentGame->foodPos[i].y*(float)TILE_SIZE+(TILE_SIZE/10)*y
+                            tileOffset.x+currentGame->foodPos[i].x*(float)TILE_SIZE+((float)TILE_SIZE/SUBGAME_VISUAL_SIZE)*x,
+                            tileOffset.y+currentGame->foodPos[i].y*(float)TILE_SIZE+((float)TILE_SIZE/SUBGAME_VISUAL_SIZE)*y
                         },
                         (vec2){
-                            (float)TILE_SIZE/10,
-                            (float)TILE_SIZE/10
+                            (float)TILE_SIZE/SUBGAME_VISUAL_SIZE,
+                            (float)TILE_SIZE/SUBGAME_VISUAL_SIZE
                         },
                         color);
                     }
                 }
             }
+        }
+
+        // Exit subgame if needed
+        if (exit_current_subgame)  {
+            Subgame *parent = currentGame->parent;
+
+            DeleteSubgame(currentGame);
+            
+            currentGame = parent;
+            currentGame->foodCount--;
+            currentGame->snake.length--;
+            exit_current_subgame = false;
+
         }
 
         // Bind VAO FIRST
